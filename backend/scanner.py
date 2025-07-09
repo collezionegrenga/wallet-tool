@@ -239,17 +239,23 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                     pubkey_obj = acc.pubkey  # già Pubkey!
                     pubkey_str = str(pubkey_obj)
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
-                    account_info_resp = solana_client.execute_with_retry("get_account_info", pubkey_obj)
+
+                    account_info_resp = solana_client.execute_with_retry(
+                        "get_account_info",
+                        pubkey_obj,
+                        {"encoding": "jsonParsed"}
+                    )
                     account_info = account_info_resp.value
-                    if not account_info:
+                    if not account_info or not hasattr(account_info.data, "parsed"):
                         continue
+
                     lamports = account_info.lamports
-                    parsed_data = acc.account.data.parsed["info"]
+                    parsed_data = account_info.data.parsed["info"]
                     mint = parsed_data["mint"]
                     amount = int(parsed_data["tokenAmount"]["amount"])
                     decimals = int(parsed_data["tokenAmount"]["decimals"])
                     ui_amount = amount / (10 ** decimals)
-                    
+
                     if ui_amount == 0:
                         is_nft_token = await is_nft(session, mint)
                         empty_accounts.append({
