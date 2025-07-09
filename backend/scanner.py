@@ -241,10 +241,11 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
 
                     from solana.rpc.types import AccountInfoOpts
+                    opts = AccountInfoOpts(encoding="jsonParsed")
                     account_info_resp = solana_client.execute_with_retry(
                         "get_account_info",
                         pubkey_obj,
-                        AccountInfoOpts(encoding="jsonParsed")
+                        opts
                     )
                     account_info = account_info_resp.value
                     if not account_info or not hasattr(account_info.data, "parsed"):
