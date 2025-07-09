@@ -1,6 +1,6 @@
 import sys
 import asyncio
-from solana.rpc.api import AsyncClient
+from solana.rpc.async_api import AsyncClient
 from solders.pubkey import Pubkey as PublicKey
 from solders.instruction import AccountMeta, Instruction as TransactionInstruction
 from solders.hash import Hash
