@@ -194,116 +194,124 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
     
     try:
         # Verifica che l'indirizzo sia valido
-        pubkey = PublicKey.from_string(wallet_address)
-    except Exception:
-        print(f"❌ Indirizzo wallet non valido: {wallet_address}")
-        return None
+        # Utilizziamo la stringa direttamente per compatibilità con l'API
+        try:
+            pubkey = PublicKey.from_string(wallet_address)
+            # Convertiamo subito in stringa per l'uso con l'API
+            wallet_address_str = str(pubkey)
+        except:
+            print(f"❌ Indirizzo wallet non valido: {wallet_address}")
+            return None
         
-    try:
-        # Ottieni SOL balance
-        sol_balance_resp = solana_client.execute_with_retry("get_balance", pubkey)
-        sol_balance = lamports_to_sol(sol_balance_resp["result"]["value"])
-        
-        # Ottieni tutti i token account
-        token_program_id = PublicKey.from_string(TOKEN_PROGRAM_ID)
-        resp = solana_client.execute_with_retry(
-            "get_token_accounts_by_owner", 
-            pubkey, 
-            {"programId": token_program_id}
-        )
-        accounts = resp["result"]["value"]
-        print(f"✅ Trovati {len(accounts)} token account\n")
-        
-        # Prepara per elaborazione asincrona
-        token_data = []
-        empty_accounts = []
-        total_rent_reclaimable = 0
-        
-        async with aiohttp.ClientSession() as session:
-            # Elabora tutti gli account
-            for acc in accounts:
-                pubkey_str = acc["pubkey"]
-                account_info = solana_client.execute_with_retry("get_account_info", pubkey_str)["result"]["value"]
+        try:
+            # Ottieni SOL balance - usando la stringa
+            sol_balance_resp = solana_client.execute_with_retry("get_balance", wallet_address_str)
+            sol_balance = lamports_to_sol(sol_balance_resp["result"]["value"])
+            
+            # Ottieni tutti i token account - usando la stringa
+            resp = solana_client.execute_with_retry(
+                "get_token_accounts_by_owner", 
+                wallet_address_str, 
+                {"programId": TOKEN_PROGRAM_ID}
+            )
+            accounts = resp["result"]["value"]
+            print(f"✅ Trovati {len(accounts)} token account\n")
+            
+            # Prepara per elaborazione asincrona
+            token_data = []
+            empty_accounts = []
+            total_rent_reclaimable = 0
+            
+            async with aiohttp.ClientSession() as session:
+                # Elabora tutti gli account
+                for acc in accounts:
+                    pubkey_str = acc["pubkey"]
+                    account_info = solana_client.execute_with_retry("get_account_info", pubkey_str)["result"]["value"]
+                    
+                    if not account_info:
+                        continue
+                        
+                    lamports = account_info["lamports"]
+                    parsed_data = acc["account"]["data"]["parsed"]["info"]
+                    mint = parsed_data["mint"]
+                    amount = int(parsed_data["tokenAmount"]["amount"])
+                    decimals = int(parsed_data["tokenAmount"]["decimals"])
+                    ui_amount = amount / (10 ** decimals)
+                    
+                    # Controlla se l'account è vuoto
+                    if ui_amount == 0:
+                        is_nft_token = await is_nft(session, mint)
+                        empty_accounts.append({
+                            "pubkey": pubkey_str,
+                            "mint": mint,
+                            "lamports": lamports,
+                            "is_nft": is_nft_token
+                        })
+                        
+                        # Aggiungi al totale reclaimable solo se non è un NFT
+                        if not is_nft_token:
+                            total_rent_reclaimable += lamports
+                    else:
+                        # Ottieni metadati token
+                        metadata = await get_token_metadata(session, mint)
+                        symbol = metadata.get("symbol", mint[:4] + "...")
+                        name = metadata.get("name", "Unknown")
+                        
+                        # Ottieni prezzo token
+                        price = await get_token_price(session, mint)
+                        value_usd = ui_amount * price
+                        
+                        token_data.append({
+                            "mint": mint,
+                            "symbol": symbol,
+                            "name": name,
+                            "balance": ui_amount,
+                            "price_usd": price,
+                            "value_usd": value_usd,
+                            "decimals": decimals
+                        })
                 
-                if not account_info:
-                    continue
-                    
-                lamports = account_info["lamports"]
-                parsed_data = acc["account"]["data"]["parsed"]["info"]
-                mint = parsed_data["mint"]
-                amount = int(parsed_data["tokenAmount"]["amount"])
-                decimals = int(parsed_data["tokenAmount"]["decimals"])
-                ui_amount = amount / (10 ** decimals)
+                # Ordina token per valore
+                token_data.sort(key=lambda x: x["value_usd"], reverse=True)
                 
-                # Controlla se l'account è vuoto
-                if ui_amount == 0:
-                    is_nft_token = await is_nft(session, mint)
-                    empty_accounts.append({
-                        "pubkey": pubkey_str,
-                        "mint": mint,
-                        "lamports": lamports,
-                        "is_nft": is_nft_token
-                    })
-                    
-                    # Aggiungi al totale reclaimable solo se non è un NFT
-                    if not is_nft_token:
-                        total_rent_reclaimable += lamports
-                else:
-                    # Ottieni metadati token
-                    metadata = await get_token_metadata(session, mint)
-                    symbol = metadata.get("symbol", mint[:4] + "...")
-                    name = metadata.get("name", "Unknown")
-                    
-                    # Ottieni prezzo token
-                    price = await get_token_price(session, mint)
-                    value_usd = ui_amount * price
-                    
-                    token_data.append({
-                        "mint": mint,
-                        "symbol": symbol,
-                        "name": name,
-                        "balance": ui_amount,
-                        "price_usd": price,
-                        "value_usd": value_usd,
-                        "decimals": decimals
-                    })
-            
-            # Ordina token per valore
-            token_data.sort(key=lambda x: x["value_usd"], reverse=True)
-            
-            # Calcola statistiche
-            total_value_usd = sum(t["value_usd"] for t in token_data)
-            sol_value_usd = sol_balance * await get_token_price(session, "So11111111111111111111111111111111111111112")
-            grand_total_usd = total_value_usd + sol_value_usd
-            
-            # Genera report
-            report = {
-                "wallet": wallet_address,
-                "sol_balance": sol_balance,
-                "sol_value_usd": sol_value_usd,
-                "token_accounts": len(accounts),
-                "empty_accounts": len(empty_accounts),
-                "nft_accounts": sum(1 for acc in empty_accounts if acc["is_nft"]),
-                "rent_reclaimable": lamports_to_sol(total_rent_reclaimable),
-                "rent_reclaimable_usd": lamports_to_sol(total_rent_reclaimable) * await get_token_price(session, "So11111111111111111111111111111111111111112"),
-                "tokens": token_data,
-                "total_token_value_usd": total_value_usd,
-                "grand_total_usd": grand_total_usd,
-                "scan_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "execution_time": time.time() - start_time
-            }
-            
-            # Stampa report
-            print_wallet_report(report, detailed)
-            
-            # Esporta se richiesto
-            if export_format:
-                export_report(report, wallet_address, export_format)
+                # Calcola statistiche
+                total_value_usd = sum(t["value_usd"] for t in token_data)
+                sol_value_usd = sol_balance * await get_token_price(session, "So11111111111111111111111111111111111111112")
+                grand_total_usd = total_value_usd + sol_value_usd
                 
-            return report
-            
+                # Genera report
+                report = {
+                    "wallet": wallet_address_str,
+                    "sol_balance": sol_balance,
+                    "sol_value_usd": sol_value_usd,
+                    "token_accounts": len(accounts),
+                    "empty_accounts": len(empty_accounts),
+                    "nft_accounts": sum(1 for acc in empty_accounts if acc["is_nft"]),
+                    "rent_reclaimable": lamports_to_sol(total_rent_reclaimable),
+                    "rent_reclaimable_usd": lamports_to_sol(total_rent_reclaimable) * await get_token_price(session, "So11111111111111111111111111111111111111112"),
+                    "tokens": token_data,
+                    "total_token_value_usd": total_value_usd,
+                    "grand_total_usd": grand_total_usd,
+                    "scan_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "execution_time": time.time() - start_time
+                }
+                
+                # Stampa report
+                print_wallet_report(report, detailed)
+                
+                # Esporta se richiesto
+                if export_format:
+                    export_report(report, wallet_address_str, export_format)
+                    
+                return report
+                
+        except Exception as e:
+            print(f"❌ Errore durante la scansione: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None
     except Exception as e:
-        print(f"❌ Errore durante la scansione: {str(e)}")
+        print(f"❌ Errore generale: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -479,13 +487,17 @@ async def batch_process(input_file: str, export_format: str = None, detailed: bo
 def generate_recovery_script(wallet_address: str, output_file: str = None):
     try:
         # Ottieni tutti i token account
-        pubkey = PublicKey.from_string(wallet_address)
-        token_program_id = PublicKey.from_string(TOKEN_PROGRAM_ID)
+        try:
+            pubkey = PublicKey.from_string(wallet_address)
+            wallet_address_str = str(pubkey)
+        except:
+            print(f"❌ Indirizzo wallet non valido: {wallet_address}")
+            return
         
         resp = solana_client.execute_with_retry(
             "get_token_accounts_by_owner", 
-            pubkey, 
-            {"programId": token_program_id}
+            wallet_address_str, 
+            {"programId": TOKEN_PROGRAM_ID}
         )
         accounts = resp["result"]["value"]
         
@@ -512,14 +524,14 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
         script = f"""#!/usr/bin/env bash
 # Script per recuperare SOL da account token vuoti
 # Generato il {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-# Per wallet: {wallet_address}
+# Per wallet: {wallet_address_str}
 
 # Requisiti: Solana CLI installata e configurata
 
 # Verifica che il wallet sia configurato correttamente
 WALLET_ADDRESS=$(solana address)
-if [ "$WALLET_ADDRESS" != "{wallet_address}" ]; then
-    echo "⚠️  ATTENZIONE: L'indirizzo del wallet Solana CLI ($WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address})."
+if [ "$WALLET_ADDRESS" != "{wallet_address_str}" ]; then
+    echo "⚠️  ATTENZIONE: L'indirizzo del wallet Solana CLI ($WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address_str})."
     read -p "Vuoi continuare? (s/n): " confirm
     if [ "$confirm" != "s" ]; then
         echo "Operazione annullata."
@@ -527,7 +539,7 @@ if [ "$WALLET_ADDRESS" != "{wallet_address}" ]; then
     fi
 fi
 
-echo "🔄 Chiusura di ${len(empty_accounts)} account token vuoti..."
+echo "🔄 Chiusura di {len(empty_accounts)} account token vuoti..."
 echo ""
 
 """
@@ -535,7 +547,7 @@ echo ""
         # Aggiungi i comandi per ogni account
         for i, account in enumerate(empty_accounts):
             script += f"echo \"[{i+1}/{len(empty_accounts)}] Chiusura account: {account}\"\n"
-            script += f"solana close-token-account {account} --owner {wallet_address}\n"
+            script += f"solana close-token-account {account} --owner {wallet_address_str}\n"
             script += "sleep 1\n\n"
         
         script += """
