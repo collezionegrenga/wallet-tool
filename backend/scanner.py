@@ -1,5 +1,5 @@
 from solana.rpc.api import Client
-from solana.publickey import PublicKey
+from solders.pubkey import Pubkey as PublicKey
 import requests
 import json
 import csv
