@@ -530,7 +530,7 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
 # Verifica che il wallet sia configurato correttamente
 WALLET_ADDRESS=$(solana address)
 if [ "$WALLET_ADDRESS" != "{wallet_address_str}" ]; then
-    echo "⚠️  ATTENZIONE: L'indirizzo del wallet Solana CLI ($WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address})."
+    echo "⚠️  ATTENZIONE: L'indirizzo del wallet Solana CLI ($WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address_str})."
     read -p "Vuoi continuare? (s/n): " confirm
     if [ "$confirm" != "s" ]; then
         echo "Operazione annullata."
