@@ -11,7 +11,6 @@ import {
 import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
-  BackpackWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
 import { clusterApiUrl } from "@solana/web3.js";
 import "@solana/wallet-adapter-react-ui/styles.css";
@@ -23,7 +22,6 @@ const WalletConnectButton: React.FC = () => {
     () => [
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter(),
-      new BackpackWalletAdapter(),
     ],
     []
   );
@@ -37,4 +35,5 @@ const WalletConnectButton: React.FC = () => {
     </ConnectionProvider>
   );
 };
-export default WalletConnectButton; 
+
+export default WalletConnectButton;
