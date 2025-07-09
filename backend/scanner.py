@@ -580,27 +580,30 @@ fi
 
 echo "🔄 Chiusura di {len(empty_accounts)} account token vuoti..."
 echo ""
+
 """
-        for i, account in enumerate(empty_accounts):
-            script += f"echo \"[{i+1}/{len(empty_accounts)}] Chiusura account: {account}\"\n"
-            script += f"solana close-token-account {account} --owner {wallet_address_str}\n"
-            script += "sleep 1\n\n"
-        script += """
+for i, account in enumerate(empty_accounts):
+    script += f"echo \"[{i+1}/{len(empty_accounts)}] Chiusura account: {account}\"\n"
+    script += f"solana close-token-account {account} --owner {wallet_address_str}\n"
+    script += "sleep 1\n\n"
+"""
 echo ""
 echo "✅ Operazione completata. Verifica il tuo balance SOL."
 """
-        if output_file:
-            with open(output_file, "w") as f:
-                f.write(script)
-            os.chmod(output_file, 0o755)
-            print(f"✅ Script di recupero salvato in: {output_file}")
-        else:
-            print("\n" + "="*60)
-            print("📜 SCRIPT DI RECUPERO RENT")
-            print("="*60 + "\n")
-            print(script)
-    except Exception as e:
-        print(f"❌ Errore durante la generazione dello script: {str(e)}")
+
+if output_file:
+    with open(output_file, "w") as f:
+        f.write(script)
+    os.chmod(output_file, 0o755)
+    print(f"✅ Script di recupero salvato in: {output_file}")
+else:
+    print("\n" + "="*60)
+    print("📜 SCRIPT DI RECUPERO RENT")
+    print("="*60 + "\n")
+    print(script)
+
+except Exception as e:
+    print(f"❌ Errore durante la generazione dello script: {str(e)}")
 
 async def main():
     parser = argparse.ArgumentParser(description="Solana Wallet Scanner - Analisi completa di wallet Solana")
@@ -611,6 +614,7 @@ async def main():
     parser.add_argument("-r", "--recovery", action="store_true", help="Genera script di recupero rent")
     parser.add_argument("-o", "--output", help="Nome file di output per lo script di recupero")
     args = parser.parse_args()
+
     if not args.wallet and not args.batch:
         wallet = input("Inserisci l'address del wallet Solana: ").strip()
         if args.recovery:
