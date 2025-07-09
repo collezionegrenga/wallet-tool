@@ -1,8 +1,8 @@
-FROM python:3.11-slim
+FROM python:3.11.8-slim-bookworm
 
 # Install system dependencies
 RUN apt-get update &amp;&amp; \
-    apt-get install -y gcc build-essential libffi-dev python3-dev --no-install-recommends &amp;&amp; \
+    apt-get install -y --no-install-recommends gcc build-essential libffi-dev python3-dev &amp;&amp; \
     apt-get clean
 
 # Set working directory
