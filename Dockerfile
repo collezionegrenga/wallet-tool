@@ -1,11 +1,7 @@
 FROM python:3.11-slim
 
-# Copy the script and make it executable
-COPY install_deps.sh /tmp/install_deps.sh
-RUN chmod +x /tmp/install_deps.sh
-
-# Run the script
-RUN /tmp/install_deps.sh
+# Install system dependencies
+RUN apt-get update &amp;&amp; apt-get install -y gcc build-essential libffi-dev --no-install-recommends &amp;&amp; apt-get clean
 
 # Set working directory
 WORKDIR /app
@@ -14,8 +10,7 @@ WORKDIR /app
 COPY backend/requirements.txt /app/requirements.txt
 
 # Install Python packages
-RUN pip install --upgrade pip &amp;&amp; \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip &amp;&amp; pip install --no-cache-dir -r requirements.txt
 
 # Copy backend files
 COPY backend/ /app
