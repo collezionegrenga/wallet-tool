@@ -40,6 +40,22 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Generated files
-static/scripts/*
-!static/scripts/.gitkeep
+# Node and frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/package-lock.json
+
+# Vite output
+frontend/frontend/dist/
+
+# Generated scripts
+backend/static/scripts/*
+!backend/static/scripts/.gitkeep
+
+# Netlify
+.netlify/
+
+# OS-generated files
+ehthumbs.db
+Icon?
