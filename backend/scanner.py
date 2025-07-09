@@ -494,36 +494,73 @@ async def batch_process(input_file: str, export_format: str = None, detailed: bo
         print(f"❌ Errore durante l'elaborazione batch: {str(e)}")
         return None
 
+from solana.publickey import PublicKey
+from solana.rpc.types import TokenAccountOpts, AccountInfoOpts
+
 def generate_recovery_script(wallet_address: str, output_file: str = None):
     try:
+        # Validazione indirizzo wallet
         try:
             pubkey = PublicKey.from_string(wallet_address)
             wallet_address_str = str(pubkey)
-        except:
+        except Exception:
             print(f"❌ Indirizzo wallet non valido: {wallet_address}")
             return
+
+        # Ottieni token accounts del wallet
         resp = solana_client.execute_with_retry(
-            "get_token_accounts_by_owner", 
+            "get_token_accounts_by_owner",
             pubkey,
             TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
         )
         accounts = resp.value
+        if not accounts:
+            print(f"❌ Nessun token account trovato per wallet {wallet_address_str}")
+            return
+
         empty_accounts = []
+        # Imposta opzioni per avere dati jsonParsed corretti
+        opts = AccountInfoOpts(encoding="jsonParsed")
+
         for acc in accounts:
             pubkey_str = acc.pubkey
             acc_pub = PublicKey.from_string(pubkey_str)
-            account_info_resp = solana_client.execute_with_retry("get_account_info", acc_pub)
+            # Chiedi get_account_info con opzioni jsonParsed
+            account_info_resp = solana_client.execute_with_retry("get_account_info", acc_pub, opts)
             account_info = account_info_resp.value
             if not account_info:
                 continue
-            parsed_data = acc.account.data.parsed["info"]
+            # Verifica che esista e sia nel formato giusto
+            if not hasattr(account_info.data, "parsed") or not isinstance(account_info.data.parsed, dict):
+                continue
+
+            parsed_data = account_info.data.parsed.get("info")
+            if not parsed_data:
+                continue
+
             amount = int(parsed_data["tokenAmount"]["amount"])
             if amount == 0:
                 empty_accounts.append(pubkey_str)
+
         if not empty_accounts:
             print("❌ Nessun account vuoto trovato da cui recuperare rent.")
             return
-        script = f"""#!/usr/bin/env bash
+
+        # Costruisci lo script bash (esempio semplice)
+        script = "#!/usr/bin/env bash\n\n"
+        for acc_pubkey in empty_accounts:
+            script += f"echo 'Recupero rent da {acc_pubkey}'\n"
+            # Qui puoi inserire comandi reali per recuperare rent...
+
+        if output_file:
+            with open(output_file, "w") as f:
+                f.write(script)
+            print(f"✅ Script salvato in {output_file}")
+        else:
+            print(script)
+
+    except Exception as e:
+        print(f"❌ Errore in generate_recovery_script: {e}")
 # Script per recuperare SOL da account token vuoti
 # Generato il {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 # Per wallet: {wallet_address_str}
