@@ -519,18 +519,15 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             return
 
         empty_accounts = []
-        # Imposta opzioni per avere dati jsonParsed corretti
         opts = AccountInfoOpts(encoding="jsonParsed")
 
         for acc in accounts:
             pubkey_str = acc.pubkey
             acc_pub = PublicKey.from_string(pubkey_str)
-            # Chiedi get_account_info con opzioni jsonParsed
             account_info_resp = solana_client.execute_with_retry("get_account_info", acc_pub, opts)
             account_info = account_info_resp.value
             if not account_info:
                 continue
-            # Verifica che esista e sia nel formato giusto
             if not hasattr(account_info.data, "parsed") or not isinstance(account_info.data.parsed, dict):
                 continue
 
@@ -546,64 +543,47 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             print("❌ Nessun account vuoto trovato da cui recuperare rent.")
             return
 
-        # Costruisci lo script bash (esempio semplice)
+        # Costruisci script bash riga per riga (stringa semplice)
         script = "#!/usr/bin/env bash\n\n"
-        for acc_pubkey in empty_accounts:
-            script += f"echo 'Recupero rent da {acc_pubkey}'\n"
-            # Qui puoi inserire comandi reali per recuperare rent...
+        script += "# Script per recuperare SOL da account token vuoti\n"
+        script += f"# Generato il {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        script += f"# Per wallet: {wallet_address_str}\n\n"
+
+        script += "# Requisiti: Solana CLI installata e configurata\n\n"
+
+        script += "WALLET_ADDRESS=$(solana address)\n"
+        script += f'if [ "$WALLET_ADDRESS" != "{wallet_address_str}" ]; then\n'
+        script += f'    echo "⚠️  ATTENZIONE: L\'indirizzo del wallet Solana CLI ($WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address_str})."\n'
+        script += '    read -p "Vuoi continuare? (s/n): " confirm\n'
+        script += '    if [ "$confirm" != "s" ]; then\n'
+        script += '        echo "Operazione annullata."\n'
+        script += '        exit 1\n'
+        script += '    fi\n'
+        script += 'fi\n\n'
+
+        script += f'echo "🔄 Chiusura di {len(empty_accounts)} account token vuoti..."\n\n'
+
+        for i, account in enumerate(empty_accounts):
+            script += f'echo "[{i+1}/{len(empty_accounts)}] Chiusura account: {account}"\n'
+            script += f'solana close-token-account {account} --owner {wallet_address_str}\n'
+            script += 'sleep 1\n\n'
+
+        script += 'echo ""\n'
+        script += 'echo "✅ Operazione completata. Verifica il tuo balance SOL."\n'
 
         if output_file:
             with open(output_file, "w") as f:
                 f.write(script)
-            print(f"✅ Script salvato in {output_file}")
+            os.chmod(output_file, 0o755)
+            print(f"✅ Script di recupero salvato in: {output_file}")
         else:
+            print("\n" + "="*60)
+            print("📜 SCRIPT DI RECUPERO RENT")
+            print("="*60 + "\n")
             print(script)
 
     except Exception as e:
-        print(f"❌ Errore in generate_recovery_script: {e}")
-# Script per recuperare SOL da account token vuoti
-# Generato il {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-# Per wallet: {wallet_address_str}
-
-# Requisiti: Solana CLI installata e configurata
-
-# Verifica che il wallet sia configurato correttamente
-WALLET_ADDRESS=$(solana address)
-if [ "$WALLET_ADDRESS" != "{wallet_address_str}" ]; then
-    echo "⚠️  ATTENZIONE: L'indirizzo del wallet Solana CLI ($WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address_str})."
-    read -p "Vuoi continuare? (s/n): " confirm
-    if [ "$confirm" != "s" ]; then
-        echo "Operazione annullata."
-        exit 1
-    fi
-fi
-
-echo "🔄 Chiusura di {len(empty_accounts)} account token vuoti..."
-echo ""
-
-"""
-for i, account in enumerate(empty_accounts):
-    script += f"echo \"[{i+1}/{len(empty_accounts)}] Chiusura account: {account}\"\n"
-    script += f"solana close-token-account {account} --owner {wallet_address_str}\n"
-    script += "sleep 1\n\n"
-"""
-echo ""
-echo "✅ Operazione completata. Verifica il tuo balance SOL."
-"""
-
-if output_file:
-    with open(output_file, "w") as f:
-        f.write(script)
-    os.chmod(output_file, 0o755)
-    print(f"✅ Script di recupero salvato in: {output_file}")
-else:
-    print("\n" + "="*60)
-    print("📜 SCRIPT DI RECUPERO RENT")
-    print("="*60 + "\n")
-    print(script)
-
-except Exception as e:
-    print(f"❌ Errore durante la generazione dello script: {str(e)}")
+        print(f"❌ Errore durante la generazione dello script: {str(e)}")
 
 async def main():
     parser = argparse.ArgumentParser(description="Solana Wallet Scanner - Analisi completa di wallet Solana")
