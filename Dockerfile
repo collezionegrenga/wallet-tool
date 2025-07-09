@@ -1,17 +1,22 @@
 FROM python:3.11-slim
 
-# Set workdir
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y gcc build-essential libffi-dev && \
+    apt-get clean
+
+# Set working directory
 WORKDIR /app
 
-# Copy only backend folder contents
+# Copy backend files
 COPY backend/ /app
 
 # Install Python packages
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
-# Expose backend port
+# Expose port
 EXPOSE 5000
 
-# Run the Flask app
+# Run the app
 CMD ["python", "app.py"]
