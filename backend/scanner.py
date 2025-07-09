@@ -194,12 +194,11 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
     
     try:
         # Verifica che l'indirizzo sia valido
-        # Utilizziamo la stringa direttamente per compatibilità con l'API
         try:
             pubkey = PublicKey.from_string(wallet_address)
             # Convertiamo subito in stringa per l'uso con l'API
             wallet_address_str = str(pubkey)
-        except:
+        except Exception:
             print(f"❌ Indirizzo wallet non valido: {wallet_address}")
             return None
         
@@ -251,65 +250,65 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                         # Aggiungi al totale reclaimable solo se non è un NFT
                         if not is_nft_token:
                             total_rent_reclaimable += lamports
-                    else:
-                        # Ottieni metadati token
-                        metadata = await get_token_metadata(session, mint)
-                        symbol = metadata.get("symbol", mint[:4] + "...")
-                        name = metadata.get("name", "Unknown")
-                        
-                        # Ottieni prezzo token
-                        price = await get_token_price(session, mint)
-                        value_usd = ui_amount * price
-                        
-                        token_data.append({
-                            "mint": mint,
-                            "symbol": symbol,
-                            "name": name,
-                            "balance": ui_amount,
-                            "price_usd": price,
-                            "value_usd": value_usd,
-                            "decimals": decimals
-                        })
-                
-                # Ordina token per valore
-                token_data.sort(key=lambda x: x["value_usd"], reverse=True)
-                
-                # Calcola statistiche
-                total_value_usd = sum(t["value_usd"] for t in token_data)
-                sol_value_usd = sol_balance * await get_token_price(session, "So11111111111111111111111111111111111111112")
-                grand_total_usd = total_value_usd + sol_value_usd
-                
-                # Genera report
-                report = {
-                    "wallet": wallet_address_str,
-                    "sol_balance": sol_balance,
-                    "sol_value_usd": sol_value_usd,
-                    "token_accounts": len(accounts),
-                    "empty_accounts": len(empty_accounts),
-                    "nft_accounts": sum(1 for acc in empty_accounts if acc["is_nft"]),
-                    "rent_reclaimable": lamports_to_sol(total_rent_reclaimable),
-                    "rent_reclaimable_usd": lamports_to_sol(total_rent_reclaimable) * await get_token_price(session, "So11111111111111111111111111111111111111112"),
-                    "tokens": token_data,
-                    "total_token_value_usd": total_value_usd,
-                    "grand_total_usd": grand_total_usd,
-                    "scan_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "execution_time": time.time() - start_time
-                }
-                
-                # Stampa report
-                print_wallet_report(report, detailed)
-                
-                # Esporta se richiesto
-                if export_format:
-                    export_report(report, wallet_address_str, export_format)
+                else:
+                    # Ottieni metadati token
+                    metadata = await get_token_metadata(session, mint)
+                    symbol = metadata.get("symbol", mint[:4] + "...")
+                    name = metadata.get("name", "Unknown")
                     
-                return report
+                    # Ottieni prezzo token
+                    price = await get_token_price(session, mint)
+                    value_usd = ui_amount * price
+                    
+                    token_data.append({
+                        "mint": mint,
+                        "symbol": symbol,
+                        "name": name,
+                        "balance": ui_amount,
+                        "price_usd": price,
+                        "value_usd": value_usd,
+                        "decimals": decimals
+                    })
+            
+            # Ordina token per valore
+            token_data.sort(key=lambda x: x["value_usd"], reverse=True)
+            
+            # Calcola statistiche
+            total_value_usd = sum(t["value_usd"] for t in token_data)
+            sol_value_usd = sol_balance * await get_token_price(session, "So11111111111111111111111111111111111111112")
+            grand_total_usd = total_value_usd + sol_value_usd
+            
+            # Genera report
+            report = {
+                "wallet": wallet_address_str,
+                "sol_balance": sol_balance,
+                "sol_value_usd": sol_value_usd,
+                "token_accounts": len(accounts),
+                "empty_accounts": len(empty_accounts),
+                "nft_accounts": sum(1 for acc in empty_accounts if acc["is_nft"]),
+                "rent_reclaimable": lamports_to_sol(total_rent_reclaimable),
+                "rent_reclaimable_usd": lamports_to_sol(total_rent_reclaimable) * await get_token_price(session, "So11111111111111111111111111111111111111112"),
+                "tokens": token_data,
+                "total_token_value_usd": total_value_usd,
+                "grand_total_usd": grand_total_usd,
+                "scan_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "execution_time": time.time() - start_time
+            }
+            
+            # Stampa report
+            print_wallet_report(report, detailed)
+            
+            # Esporta se richiesto
+            if export_format:
+                export_report(report, wallet_address_str, export_format)
                 
-        except Exception as e:
-            print(f"❌ Errore durante la scansione: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return None
+            return report
+            
+    except Exception as e:
+        print(f"❌ Errore durante la scansione: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
     except Exception as e:
         print(f"❌ Errore generale: {str(e)}")
         import traceback
@@ -531,7 +530,7 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
 # Verifica che il wallet sia configurato correttamente
 WALLET_ADDRESS=$(solana address)
 if [ "$WALLET_ADDRESS" != "{wallet_address_str}" ]; then
-    echo "⚠️  ATTENZIONE: L'indirizzo del wallet Solana CLI ($WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address_str})."
+    echo "⚠️  ATTENZIONE: L'indirizzo del wallet Solana CLI ($WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address})."
     read -p "Vuoi continuare? (s/n): " confirm
     if [ "$confirm" != "s" ]; then
         echo "Operazione annullata."
