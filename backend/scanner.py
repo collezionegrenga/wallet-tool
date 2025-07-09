@@ -211,7 +211,7 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             print(f"ℹ️ Richiesta get_balance per: {pubkey}")  # Log dell'oggetto Pubkey
             sol_balance_resp = solana_client.execute_with_retry("get_balance", pubkey)
             print(f"✅ Risposta get_balance: {sol_balance_resp}")
-            sol_balance = lamports_to_sol(sol_balance_resp["result"]["value"])
+            sol_balance = lamports_to_sol(sol_balance_resp.value)
             
             # Ottieni tutti i token account - usando la stringa
             print(f"ℹ️ Richiesta get_token_accounts_by_owner per: {wallet_address_str}")
