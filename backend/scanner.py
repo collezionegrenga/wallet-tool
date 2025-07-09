@@ -73,11 +73,9 @@ class EnhancedSolanaClient:
 # Inizializza client avanzato
 solana_client = EnhancedSolanaClient(SOLANA_RPC, BACKUP_RPC)
 
-# Utility per conversione lamports
 def lamports_to_sol(lamports: int) -> float:
     return lamports / 1_000_000_000
 
-# Funzione per formattare numeri grandi
 def format_number(num: float) -> str:
     if num >= 1_000_000:
         return f"{num/1_000_000:.2f}M"
@@ -93,7 +91,7 @@ async def fetch_api_data(session, url, headers=None):
             async with session.get(url, headers=headers, timeout=API_TIMEOUT) as response:
                 if response.status == 200:
                     return await response.json()
-                elif response.status == 429:  # Rate limit
+                elif response.status == 429:
                     wait_time = RATE_LIMIT_RETRY_SECONDS * (attempt + 1)
                     print(f"Rate limited. Waiting {wait_time}s before retry...")
                     await asyncio.sleep(wait_time)
@@ -116,10 +114,7 @@ async def get_token_metadata(session, mint_address: str) -> Dict:
         return token_symbol_cache[mint_address]
     
     try:
-        # Prova prima con Solscan
         data = await fetch_api_data(session, f"https://public-api.solscan.io/token/meta?tokenAddress={mint_address}")
-        
-        # Se Solscan fallisce, prova con Jupiter
         if not data or not data.get("symbol"):
             jupiter_data = await fetch_api_data(session, f"https://token.jup.ag/token/{mint_address}")
             if jupiter_data:
@@ -129,8 +124,6 @@ async def get_token_metadata(session, mint_address: str) -> Dict:
                     "decimals": jupiter_data.get("decimals", 0),
                     "icon": jupiter_data.get("logoURI", "")
                 }
-        
-        # Se ancora nessun dato, usa fallback
         if not data or not data.get("symbol"):
             data = {
                 "symbol": mint_address[:4] + "...",
@@ -138,7 +131,6 @@ async def get_token_metadata(session, mint_address: str) -> Dict:
                 "decimals": 0,
                 "icon": ""
             }
-            
         token_symbol_cache[mint_address] = data
         return data
     except Exception as e:
@@ -150,39 +142,27 @@ async def get_token_metadata(session, mint_address: str) -> Dict:
 async def get_token_price(session, mint_address: str) -> float:
     if mint_address in token_price_cache:
         return token_price_cache[mint_address]
-    
     try:
-        # Prova prima con Jupiter
         data = await fetch_api_data(session, f"https://price.jup.ag/v4/price?ids={mint_address}")
         if data and "data" in data and mint_address in data["data"]:
             price = data["data"][mint_address]["price"]
             token_price_cache[mint_address] = price
             return price
-        
-        # Fallback a Solscan
         data = await fetch_api_data(session, f"https://public-api.solscan.io/market/token/{mint_address}")
         if data and "priceUsdt" in data:
             price = float(data["priceUsdt"])
             token_price_cache[mint_address] = price
             return price
-        
         return 0.0
     except Exception:
         return 0.0
 
-# Funzione per verificare se un token è un NFT
 async def is_nft(session, mint_address: str) -> bool:
-    """
-    Determina se il mint_address è un NFT usando Solscan e fallback on-chain.
-    """
-    # Prima prova con Solscan
     data = await fetch_api_data(session, f"https://public-api.solscan.io/token/meta?tokenAddress={mint_address}")
     if data and data.get("tokenType") == "nft":
         return True
-    # Fallback: se decimals == 0 e supply == 1, probabile NFT
     if data and data.get("decimals", 1) == 0 and str(data.get("supply", "2")) in ["1", "1.0"]:
         return True
-    # Tentativo via Metaplex (endpoint pubblico non garantito, lasciato per compatibilità)
     try:
         metaplex_data = await fetch_api_data(
             session,
@@ -194,11 +174,9 @@ async def is_nft(session, mint_address: str) -> bool:
         pass
     return False
 
-# Funzione per recuperare i metadati NFT (Solscan e Metaplex, con fallback)
 async def get_nft_metadata(session, mint_address: str) -> Dict:
     if mint_address in nft_metadata_cache:
         return nft_metadata_cache[mint_address]
-    # Solscan
     data = await fetch_api_data(session, f"https://public-api.solscan.io/nft/meta?tokenAddress={mint_address}")
     if data and data.get("name"):
         result = {
@@ -211,7 +189,6 @@ async def get_nft_metadata(session, mint_address: str) -> Dict:
         }
         nft_metadata_cache[mint_address] = result
         return result
-    # Tentativo via Metaplex (endpoint pubblico non garantito)
     try:
         metaplex_data = await fetch_api_data(
             session,
@@ -230,7 +207,6 @@ async def get_nft_metadata(session, mint_address: str) -> Dict:
             return result
     except Exception:
         pass
-    # Fallback
     fallback = {
         "symbol": mint_address[:4] + "...",
         "name": "Unknown NFT",
@@ -242,14 +218,10 @@ async def get_nft_metadata(session, mint_address: str) -> Dict:
     nft_metadata_cache[mint_address] = fallback
     return fallback
 
-# Funzione principale per scansionare wallet
 async def scan_wallet(wallet_address: str, export_format: str = None, detailed: bool = False):
     print(f"🔎 Scansione wallet: {wallet_address}")
-    
     start_time = time.time()
-    
     try:
-        # Verifica che l'indirizzo sia valido
         try:
             pubkey = PublicKey.from_string(wallet_address)
             wallet_address_str = str(pubkey)
@@ -258,13 +230,11 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             return None
         
         try:
-            # Ottieni SOL balance - usando l'oggetto Pubkey
-            print(f"ℹ️ Richiesta get_balance per: {pubkey}")  # Log dell'oggetto Pubkey
+            print(f"ℹ️ Richiesta get_balance per: {pubkey}")
             sol_balance_resp = solana_client.execute_with_retry("get_balance", pubkey)
-            print(f"✅ Risposta get_balance: {sol_balance_resp}")
-            sol_balance = lamports_to_sol(sol_balance_resp["result"]["value"])
-            
-            # Ottieni tutti i token account - usando la stringa
+            sol_balance = lamports_to_sol(sol_balance_resp.value)
+            print(f"✅ Bilancio SOL trovato: {sol_balance}")
+
             print(f"ℹ️ Richiesta get_token_accounts_by_owner per: {wallet_address_str}")
             resp = solana_client.execute_with_retry(
                 "get_token_accounts_by_owner", 
@@ -274,7 +244,6 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             accounts = resp["result"]["value"]
             print(f"✅ Trovati {len(accounts)} token account\n")
             
-            # Prepara per elaborazione asincrona
             token_data = []
             nft_data = []
             empty_accounts = []
@@ -285,11 +254,8 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                     pubkey_str = acc["pubkey"]
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
                     account_info = solana_client.execute_with_retry("get_account_info", pubkey_str)["result"]["value"]
-                    print(f"✅ Risposta get_account_info: {account_info}")
-                    
                     if not account_info:
                         continue
-                        
                     lamports = account_info["lamports"]
                     parsed_data = acc["account"]["data"]["parsed"]["info"]
                     mint = parsed_data["mint"]
@@ -306,11 +272,9 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                             "lamports": lamports,
                             "is_nft": is_nft_token
                         })
-                        # Aggiungi al totale reclaimable solo se non è un NFT
                         if not is_nft_token:
                             total_rent_reclaimable += lamports
                     else:
-                        # Se NFT, raccogli separatamente
                         if await is_nft(session, mint):
                             metadata = await get_nft_metadata(session, mint)
                             nft_data.append({
@@ -324,7 +288,6 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                                 "collection": metadata.get("collection", ""),
                             })
                         else:
-                            # Ottieni metadati token fungibile
                             metadata = await get_token_metadata(session, mint)
                             symbol = metadata.get("symbol", mint[:4] + "...")
                             name = metadata.get("name", "Unknown")
@@ -340,16 +303,17 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                                 "decimals": decimals
                             })
             
-            # Ordina token per valore
             token_data.sort(key=lambda x: x["value_usd"], reverse=True)
-            
-            # Calcola statistiche
             total_value_usd = sum(t["value_usd"] for t in token_data)
-            sol_price = await get_token_price(session, "So11111111111111111111111111111111111111112")
+            async with aiohttp.ClientSession() as session:
+                sol_price = await get_token_price(session, "So11111111111111111111111111111111111111112")
             sol_value_usd = sol_balance * sol_price
             grand_total_usd = total_value_usd + sol_value_usd
             
-            # Genera report
+            # PATCH: mostra solo il 90% come recuperabile
+            rent_reclaimable_sol = lamports_to_sol(total_rent_reclaimable) * 0.9
+            rent_reclaimable_usd = lamports_to_sol(total_rent_reclaimable) * sol_price * 0.9
+
             report = {
                 "wallet": wallet_address_str,
                 "sol_balance": sol_balance,
@@ -357,8 +321,8 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                 "token_accounts": len(accounts),
                 "empty_accounts": len(empty_accounts),
                 "nft_accounts": len(nft_data) + sum(1 for acc in empty_accounts if acc["is_nft"]),
-                "rent_reclaimable": lamports_to_sol(total_rent_reclaimable),
-                "rent_reclaimable_usd": lamports_to_sol(total_rent_reclaimable) * sol_price,
+                "rent_reclaimable": rent_reclaimable_sol,
+                "rent_reclaimable_usd": rent_reclaimable_usd,
                 "tokens": token_data,
                 "nfts": nft_data,
                 "total_token_value_usd": total_value_usd,
@@ -367,13 +331,9 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                 "execution_time": time.time() - start_time
             }
             
-            # Stampa report
             print_wallet_report(report, detailed)
-            
-            # Esporta se richiesto
             if export_format:
                 export_report(report, wallet_address_str, export_format)
-                
             return report
             
         except Exception as e:
