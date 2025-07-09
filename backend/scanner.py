@@ -1,60 +1,46 @@
-from solana.rpc.api import Client
-from solders.pubkey import Pubkey as PublicKey
-from solana.rpc.types import TokenAccountOpts
-import requests
-import json
-import csv
+import sys
 import os
 import time
+import json
+import csv
 import asyncio
 import aiohttp
-from datetime import datetime
-from typing import Dict, List, Tuple, Optional, Any
 import argparse
-import sys
 import traceback
+from datetime import datetime
+from typing import Dict, List, Any, Optional
 
-"""
-scanner.py - Modulo di scansione wallet per Solana/Phantom
+from solana.rpc.api import Client
+from solana.rpc.types import TokenAccountOpts
+from solders.pubkey import Pubkey as PublicKey
 
-Attualmente supporta solo Solana (inclusi wallet Phantom). La struttura è pronta per essere estesa ad altre blockchain in futuro.
-
-Funzioni principali:
-- scan_wallet(wallet_address, ...): Scansione dettagliata di asset, NFT, saldo, metadati.
-- batch_process(...): Scansione batch di più wallet.
-- generate_recovery_script(...): Script per recupero SOL da account vuoti.
-
-Per estendere ad altre blockchain, aggiungere nuovi client/metodi e aggiornare app.py di conseguenza.
-"""
-
-# Configurazione RPC e API
+# === CONFIGURAZIONE ===
 SOLANA_RPC = "https://api.mainnet-beta.solana.com"
 BACKUP_RPC = ["https://rpc.ankr.com/solana", "https://solana-api.projectserum.com"]
 TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-NFT_PROGRAM_IDS = ["metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s", "cndy3Z4yapfJBmL3ShUp5exZKqR3z33thTzeNMm2gRZ"]
 RATE_LIMIT_RETRY_SECONDS = 1.5
 MAX_RETRIES = 5
 API_TIMEOUT = 15
 
-# Cache per simboli e prezzi
 token_symbol_cache = {}
 token_price_cache = {}
 nft_metadata_cache = {}
 
+# === CLIENT CON GESTIONE MULTI ENDPOINT ===
 class EnhancedSolanaClient:
     def __init__(self, primary_endpoint, backup_endpoints=None):
         self.primary_client = Client(primary_endpoint)
         self.backup_clients = [Client(endpoint) for endpoint in (backup_endpoints or [])]
         self.current_client_index = 0
         self.clients = [self.primary_client] + self.backup_clients
-        
+
     def get_current_client(self):
         return self.clients[self.current_client_index]
-    
+
     def rotate_client(self):
         self.current_client_index = (self.current_client_index + 1) % len(self.clients)
         return self.get_current_client()
-    
+
     def execute_with_retry(self, method_name, *args, **kwargs):
         retries = 0
         while retries < MAX_RETRIES:
@@ -70,7 +56,6 @@ class EnhancedSolanaClient:
                 self.rotate_client()
                 time.sleep(RATE_LIMIT_RETRY_SECONDS)
 
-# Inizializza client avanzato
 solana_client = EnhancedSolanaClient(SOLANA_RPC, BACKUP_RPC)
 
 def lamports_to_sol(lamports: int) -> float:
@@ -84,7 +69,7 @@ def format_number(num: float) -> str:
     else:
         return f"{num:.4f}".rstrip('0').rstrip('.') if '.' in f"{num:.4f}" else f"{num}"
 
-# API helpers con cache e rate limiting
+# === API HELPERS ===
 async def fetch_api_data(session, url, headers=None):
     for attempt in range(MAX_RETRIES):
         try:
@@ -112,7 +97,6 @@ async def fetch_api_data(session, url, headers=None):
 async def get_token_metadata(session, mint_address: str) -> Dict:
     if mint_address in token_symbol_cache:
         return token_symbol_cache[mint_address]
-    
     try:
         data = await fetch_api_data(session, f"https://public-api.solscan.io/token/meta?tokenAddress={mint_address}")
         if not data or not data.get("symbol"):
@@ -218,12 +202,14 @@ async def get_nft_metadata(session, mint_address: str) -> Dict:
     nft_metadata_cache[mint_address] = fallback
     return fallback
 
+# === SCAN WALLET ===
 async def scan_wallet(wallet_address: str, export_format: str = None, detailed: bool = False):
     print(f"🔎 Scansione wallet: {wallet_address}")
     start_time = time.time()
     try:
         try:
             pubkey = PublicKey.from_string(wallet_address)
+            wallet_address_obj = pubkey
             wallet_address_str = str(pubkey)
         except Exception as e:
             print(f"❌ Indirizzo wallet non valido: {wallet_address}: {e}")
@@ -231,14 +217,14 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
         
         try:
             print(f"ℹ️ Richiesta get_balance per: {pubkey}")
-            sol_balance_resp = solana_client.execute_with_retry("get_balance", pubkey)
+            sol_balance_resp = solana_client.execute_with_retry("get_balance", wallet_address_obj)
             sol_balance = lamports_to_sol(sol_balance_resp.value)
             print(f"✅ Bilancio SOL trovato: {sol_balance}")
 
             print(f"ℹ️ Richiesta get_token_accounts_by_owner per: {wallet_address_str}")
             resp = solana_client.execute_with_retry(
                 "get_token_accounts_by_owner", 
-                wallet_address_str, 
+                wallet_address_obj, 
                 TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
             )
             accounts = resp["result"]["value"]
@@ -252,8 +238,9 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             async with aiohttp.ClientSession() as session:
                 for acc in accounts:
                     pubkey_str = acc["pubkey"]
+                    pubkey_obj = PublicKey.from_string(pubkey_str)
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
-                    account_info = solana_client.execute_with_retry("get_account_info", pubkey_str)["result"]["value"]
+                    account_info = solana_client.execute_with_retry("get_account_info", pubkey_obj)["result"]["value"]
                     if not account_info:
                         continue
                     lamports = account_info["lamports"]
@@ -263,7 +250,6 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                     decimals = int(parsed_data["tokenAmount"]["decimals"])
                     ui_amount = amount / (10 ** decimals)
                     
-                    # Controlla se l'account è vuoto
                     if ui_amount == 0:
                         is_nft_token = await is_nft(session, mint)
                         empty_accounts.append({
@@ -310,7 +296,7 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             sol_value_usd = sol_balance * sol_price
             grand_total_usd = total_value_usd + sol_value_usd
             
-            # PATCH: mostra solo il 90% come recuperabile
+            # Mostra solo il 90% come recuperabile
             rent_reclaimable_sol = lamports_to_sol(total_rent_reclaimable) * 0.9
             rent_reclaimable_usd = lamports_to_sol(total_rent_reclaimable) * sol_price * 0.9
 
@@ -510,14 +496,15 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             return
         resp = solana_client.execute_with_retry(
             "get_token_accounts_by_owner", 
-            wallet_address_str, 
-            TokenAccountOpts(program_id=TOKEN_PROGRAM_ID)
+            pubkey,
+            TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
         )
         accounts = resp["result"]["value"]
         empty_accounts = []
         for acc in accounts:
             pubkey_str = acc["pubkey"]
-            account_info = solana_client.execute_with_retry("get_account_info", pubkey_str)["result"]["value"]
+            acc_pub = PublicKey.from_string(pubkey_str)
+            account_info = solana_client.execute_with_retry("get_account_info", acc_pub)["result"]["value"]
             if not account_info:
                 continue
             parsed_data = acc["account"]["data"]["parsed"]["info"]
