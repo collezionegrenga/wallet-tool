@@ -26,7 +26,6 @@ token_symbol_cache = {}
 token_price_cache = {}
 nft_metadata_cache = {}
 
-# === CLIENT CON GESTIONE MULTI ENDPOINT ===
 class EnhancedSolanaClient:
     def __init__(self, primary_endpoint, backup_endpoints=None):
         self.primary_client = Client(primary_endpoint)
@@ -227,7 +226,7 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                 wallet_address_obj, 
                 TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
             )
-            accounts = resp["result"]["value"]
+            accounts = resp.value
             print(f"✅ Trovati {len(accounts)} token account\n")
             
             token_data = []
@@ -237,14 +236,15 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             
             async with aiohttp.ClientSession() as session:
                 for acc in accounts:
-                    pubkey_str = acc["pubkey"]
+                    pubkey_str = acc.pubkey
                     pubkey_obj = PublicKey.from_string(pubkey_str)
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
-                    account_info = solana_client.execute_with_retry("get_account_info", pubkey_obj)["result"]["value"]
+                    account_info_resp = solana_client.execute_with_retry("get_account_info", pubkey_obj)
+                    account_info = account_info_resp.value
                     if not account_info:
                         continue
-                    lamports = account_info["lamports"]
-                    parsed_data = acc["account"]["data"]["parsed"]["info"]
+                    lamports = account_info.lamports
+                    parsed_data = acc.account.data.parsed["info"]
                     mint = parsed_data["mint"]
                     amount = int(parsed_data["tokenAmount"]["amount"])
                     decimals = int(parsed_data["tokenAmount"]["decimals"])
@@ -499,15 +499,16 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             pubkey,
             TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
         )
-        accounts = resp["result"]["value"]
+        accounts = resp.value
         empty_accounts = []
         for acc in accounts:
-            pubkey_str = acc["pubkey"]
+            pubkey_str = acc.pubkey
             acc_pub = PublicKey.from_string(pubkey_str)
-            account_info = solana_client.execute_with_retry("get_account_info", acc_pub)["result"]["value"]
+            account_info_resp = solana_client.execute_with_retry("get_account_info", acc_pub)
+            account_info = account_info_resp.value
             if not account_info:
                 continue
-            parsed_data = acc["account"]["data"]["parsed"]["info"]
+            parsed_data = acc.account.data.parsed["info"]
             amount = int(parsed_data["tokenAmount"]["amount"])
             if amount == 0:
                 empty_accounts.append(pubkey_str)
