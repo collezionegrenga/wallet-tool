@@ -2,7 +2,9 @@ import sys
 import asyncio
 from solana.rpc.api import Client
 from solders.pubkey import Pubkey as PublicKey
-from solana.transaction import Transaction, TransactionInstruction, AccountMeta
+from solders.instruction import Instruction as TransactionInstruction
+from solders.instruction import AccountMeta
+from solana.transaction import Transaction
 from solana.system_program import TransferParams, transfer
 from solana.rpc.async_api import AsyncClient
 from solana.keypair import Keypair
@@ -51,14 +53,3 @@ async def build_close_accounts_tx(user_pubkey: str, empty_accounts: List[str], r
     tx.fee_payer = user
     await client.close()
     return {"tx": tx.serialize_message().hex()}
-
-# Flask API usage example:
-# from flask import request, jsonify
-# @app.route('/api/close', methods=['POST'])
-# def close_accounts():
-#     data = request.json
-#     user_pubkey = data['user_pubkey']
-#     empty_accounts = data['empty_accounts']
-#     reclaimable_lamports = data['reclaimable_lamports']
-#     tx = asyncio.run(build_close_accounts_tx(user_pubkey, empty_accounts, reclaimable_lamports))
-#     return jsonify(tx) 
