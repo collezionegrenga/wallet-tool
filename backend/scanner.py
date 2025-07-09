@@ -194,21 +194,22 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
     
     try:
         # Verifica che l'indirizzo sia valido
-        PublicKey(wallet_address)
+        pubkey = PublicKey.from_string(wallet_address)
     except Exception:
         print(f"❌ Indirizzo wallet non valido: {wallet_address}")
         return None
         
     try:
         # Ottieni SOL balance
-        sol_balance_resp = solana_client.execute_with_retry("get_balance", wallet_address)
+        sol_balance_resp = solana_client.execute_with_retry("get_balance", pubkey)
         sol_balance = lamports_to_sol(sol_balance_resp["result"]["value"])
         
         # Ottieni tutti i token account
+        token_program_id = PublicKey.from_string(TOKEN_PROGRAM_ID)
         resp = solana_client.execute_with_retry(
             "get_token_accounts_by_owner", 
-            wallet_address, 
-            {"programId": TOKEN_PROGRAM_ID}
+            pubkey, 
+            {"programId": token_program_id}
         )
         accounts = resp["result"]["value"]
         print(f"✅ Trovati {len(accounts)} token account\n")
@@ -221,8 +222,8 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
         async with aiohttp.ClientSession() as session:
             # Elabora tutti gli account
             for acc in accounts:
-                pubkey = acc["pubkey"]
-                account_info = solana_client.execute_with_retry("get_account_info", pubkey)["result"]["value"]
+                pubkey_str = acc["pubkey"]
+                account_info = solana_client.execute_with_retry("get_account_info", pubkey_str)["result"]["value"]
                 
                 if not account_info:
                     continue
@@ -238,7 +239,7 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                 if ui_amount == 0:
                     is_nft_token = await is_nft(session, mint)
                     empty_accounts.append({
-                        "pubkey": pubkey,
+                        "pubkey": pubkey_str,
                         "mint": mint,
                         "lamports": lamports,
                         "is_nft": is_nft_token
@@ -387,7 +388,7 @@ def export_report(report: Dict, wallet_address: str, format_type: str):
         elif format_type.lower() == "txt":
             with open(f"{filename_base}.txt", "w", encoding="utf-8") as txtfile:
                 txtfile.write(f"SOLANA WALLET REPORT\n")
-                txtfile.write(f"==========================================\n")
+                txtfile.write(f"=====================================\n")
                 txtfile.write(f"Wallet: {report['wallet']}\n")
                 txtfile.write(f"Scan Time: {report['scan_time']}\n\n")
                 
@@ -478,17 +479,20 @@ async def batch_process(input_file: str, export_format: str = None, detailed: bo
 def generate_recovery_script(wallet_address: str, output_file: str = None):
     try:
         # Ottieni tutti i token account
+        pubkey = PublicKey.from_string(wallet_address)
+        token_program_id = PublicKey.from_string(TOKEN_PROGRAM_ID)
+        
         resp = solana_client.execute_with_retry(
             "get_token_accounts_by_owner", 
-            wallet_address, 
-            {"programId": TOKEN_PROGRAM_ID}
+            pubkey, 
+            {"programId": token_program_id}
         )
         accounts = resp["result"]["value"]
         
         empty_accounts = []
         for acc in accounts:
-            pubkey = acc["pubkey"]
-            account_info = solana_client.execute_with_retry("get_account_info", pubkey)["result"]["value"]
+            pubkey_str = acc["pubkey"]
+            account_info = solana_client.execute_with_retry("get_account_info", pubkey_str)["result"]["value"]
             
             if not account_info:
                 continue
@@ -498,7 +502,7 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             
             # Controlla se l'account è vuoto
             if amount == 0:
-                empty_accounts.append(pubkey)
+                empty_accounts.append(pubkey_str)
         
         if not empty_accounts:
             print("❌ Nessun account vuoto trovato da cui recuperare rent.")
