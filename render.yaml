@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: wallet-tool-backend  # Cambia il nome per evitare conflitti
+    name: wallet-tool-backend
     env: python
     region: frankfurt
     buildCommand: pip install -r backend/requirements.txt
@@ -9,7 +9,7 @@ services:
       application_port: 5000
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11
+        value: 3.11  # Cambia a 3.11
     buildFilter:
       paths:
         - backend/**
