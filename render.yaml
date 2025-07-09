@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: wallet-backend
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PORT
+        value: 5000
+    region: frankfurt
+    runtime: python
+    rootDir: backend
