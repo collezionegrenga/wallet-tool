@@ -1,22 +1,22 @@
 FROM python:3.11-slim
 
 # Install system dependencies
-RUN apt-get update && \
-    apt-get install -y gcc build-essential libffi-dev && \
+RUN apt-get update &amp;&amp; \
+    apt-get install -y gcc build-essential libffi-dev --no-install-recommends &amp;&amp; \
     apt-get clean
 
 # Set working directory
 WORKDIR /app
 
+# Copy requirements file
+COPY backend/requirements.txt /app/requirements.txt
+
+# Install Python packages
+RUN pip install --upgrade pip &amp;&amp; \
+    pip install --no-cache-dir -r requirements.txt
+
 # Copy backend files
 COPY backend/ /app
 
-# Install Python packages
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
-
-# Expose port
-EXPOSE 5000
-
-# Run the app
-CMD ["python", "app.py"]
+# Command to run the Flask application
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:5000"]
