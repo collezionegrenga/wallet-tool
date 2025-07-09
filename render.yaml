@@ -3,13 +3,12 @@ services:
     name: wallet-tool-backend
     env: python
     region: frankfurt
-    buildCommand: pip install -r backend/requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
-    wsgi:
-      application_port: 5000
+    plan: free  # Puoi rimuovere o cambiare se usi un piano a pagamento
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11  # Cambia a 3.11
+        value: 3.11.9
     buildFilter:
       paths:
         - backend/**
