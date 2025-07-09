@@ -207,11 +207,14 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             return None
         
         try:
-            # Ottieni SOL balance - usando la stringa
-            sol_balance_resp = solana_client.execute_with_retry("get_balance", wallet_address_str)
+            # Ottieni SOL balance - usando l'oggetto Pubkey
+            print(f"ℹ️ Richiesta get_balance per: {pubkey}")  # Log dell'oggetto Pubkey
+            sol_balance_resp = solana_client.execute_with_retry("get_balance", pubkey)
+            print(f"✅ Risposta get_balance: {sol_balance_resp}")
             sol_balance = lamports_to_sol(sol_balance_resp["result"]["value"])
             
             # Ottieni tutti i token account - usando la stringa
+            print(f"ℹ️ Richiesta get_token_accounts_by_owner per: {wallet_address_str}")
             resp = solana_client.execute_with_retry(
                 "get_token_accounts_by_owner", 
                 wallet_address_str, 
@@ -229,7 +232,9 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                 # Elabora tutti gli account
                 for acc in accounts:
                     pubkey_str = acc["pubkey"]
+                    print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
                     account_info = solana_client.execute_with_retry("get_account_info", pubkey_str)["result"]["value"]
+                    print(f"✅ Risposta get_account_info: {account_info}")
                     
                     if not account_info:
                         continue
@@ -589,7 +594,7 @@ async def main():
             output_file = args.output or f"solana_recovery_{wallet[:6]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sh"
             generate_recovery_script(wallet, output_file)
         else:
-            await scan_wallet(wallet, args.export, args.detailed)
+            await scan_wallet(args.export, args.detailed)
     elif args.wallet:
         if args.recovery:
             output_file = args.output or f"solana_recovery_{args.wallet[:6]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sh"
