@@ -1,7 +1,9 @@
 FROM python:3.11-slim
 
 # Install system dependencies
-RUN apt-get update &amp;&amp; apt-get install -y gcc build-essential libffi-dev --no-install-recommends &amp;&amp; apt-get clean
+RUN apt-get update &amp;&amp; \
+    apt-get install -y gcc build-essential libffi-dev python3-dev --no-install-recommends &amp;&amp; \
+    apt-get clean
 
 # Set working directory
 WORKDIR /app
@@ -10,7 +12,8 @@ WORKDIR /app
 COPY backend/requirements.txt /app/requirements.txt
 
 # Install Python packages
-RUN pip install --upgrade pip &amp;&amp; pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip &amp;&amp; \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy backend files
 COPY backend/ /app
