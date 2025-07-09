@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Optional, Any
 import argparse
 import sys
+import traceback  # Importa il modulo traceback
 
 """
 scanner.py - Modulo di scansione wallet per Solana/Phantom
@@ -96,13 +97,15 @@ async def fetch_api_data(session, url, headers=None):
                     await asyncio.sleep(wait_time)
                     continue
                 else:
+                    print(f"API error: Status code {response.status} for URL: {url}")
                     return None
         except Exception as e:
+            print(f"API error: {str(e)} for URL: {url}")
             if attempt < MAX_RETRIES - 1:
                 await asyncio.sleep(RATE_LIMIT_RETRY_SECONDS)
                 continue
             else:
-                print(f"API error: {str(e)}")
+                print(f"Max retries reached for URL: {url}")
                 return None
     return None
 
@@ -137,6 +140,7 @@ async def get_token_metadata(session, mint_address: str) -> Dict:
         token_symbol_cache[mint_address] = data
         return data
     except Exception as e:
+        print(f"Error getting token metadata for {mint_address}: {e}")
         fallback = {"symbol": mint_address[:4] + "...", "name": "Unknown", "decimals": 0, "icon": ""}
         token_symbol_cache[mint_address] = fallback
         return fallback
@@ -198,8 +202,8 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             pubkey = PublicKey.from_string(wallet_address)
             # Convertiamo subito in stringa per l'uso con l'API
             wallet_address_str = str(pubkey)
-        except Exception:
-            print(f"❌ Indirizzo wallet non valido: {wallet_address}")
+        except Exception as e:
+            print(f"❌ Indirizzo wallet non valido: {wallet_address}: {e}")
             return None
         
         try:
@@ -304,15 +308,13 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                 
             return report
             
-    except Exception as e:
-        print(f"❌ Errore durante la scansione: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return None
+        except Exception as e:
+            print(f"❌ Errore durante la scansione: {str(e)}")
+            print(traceback.format_exc())  # Stampa l'intero traceback
+            return None
     except Exception as e:
         print(f"❌ Errore generale: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(traceback.format_exc())  # Stampa l'intero traceback
         return None
 
 def print_wallet_report(report: Dict, detailed: bool = False):
