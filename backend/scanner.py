@@ -239,7 +239,7 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             resp = solana_client.execute_with_retry(
                 "get_token_accounts_by_owner", 
                 wallet_address_str, 
-                TokenAccountOpts(program_id=TOKEN_PROGRAM_ID)
+                TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
             )
             accounts = resp["result"]["value"]
             print(f"✅ Trovati {len(accounts)} token account\n")
