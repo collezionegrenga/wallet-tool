@@ -1,5 +1,5 @@
 const API_BASE = import.meta.env.PROD
-  ? "https://wallet-tool-backend.onrender.com"  // Sostituisci con il tuo backend reale
+  ? "https://wallet-tool-1.onrender.com"  // Sostituisci con il tuo backend reale
   : "http://localhost:5000";
 
 export async function scanWallet(wallet: string) {
