@@ -236,8 +236,8 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             
             async with aiohttp.ClientSession() as session:
                 for acc in accounts:
-                    pubkey_str = acc.pubkey
-                    pubkey_obj = PublicKey.from_string(pubkey_str)
+                    pubkey_obj = acc.pubkey  # già Pubkey!
+                    pubkey_str = str(pubkey_obj)
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
                     account_info_resp = solana_client.execute_with_retry("get_account_info", pubkey_obj)
                     account_info = account_info_resp.value
