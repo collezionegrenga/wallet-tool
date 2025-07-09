@@ -1,0 +1,80 @@
+body {
+  font-family: 'Lato', Arial, sans-serif;
+  background: #f3f4f6;
+  color: #222;
+  margin: 0;
+  min-height: 100vh;
+}
+.container {
+  max-width: 500px;
+  margin: 40px auto;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  padding: 32px 24px;
+}
+h1 {
+  color: #4f46e5;
+  margin-top: 0;
+}
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+input, button {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  font-size: 1rem;
+}
+input:focus {
+  outline: 2px solid #4f46e5;
+}
+button {
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+button:disabled {
+  background: #a5b4fc;
+  cursor: not-allowed;
+}
+.status {
+  margin: 18px 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  border-left: 4px solid #4f46e5;
+  font-size: 1.05rem;
+}
+.status.error {
+  border-left-color: #dc2626;
+  color: #dc2626;
+  background: #fef2f2;
+}
+.status.success {
+  border-left-color: #16a34a;
+  color: #16a34a;
+  background: #f0fdf4;
+}
+.result {
+  margin-top: 24px;
+  padding: 18px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  font-size: 0.98rem;
+  word-break: break-all;
+}
+@media (max-width: 700px) {
+  .container {
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 18px 6px;
+  }
+} 

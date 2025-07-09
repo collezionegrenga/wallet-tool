@@ -1,0 +1,45 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+logs/
+
+# Environment variables and virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Database files
+*.sqlite3
+*.db
+
+# Temporary files
+temp_*
+*.tmp
+*.temp
+
+# Build directories
+build/
+dist/
+*.egg-info/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Generated files
+static/scripts/*
+!static/scripts/.gitkeep

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solana Wallet Scanner</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .lang-switcher {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      z-index: 10;
+    }
+    .lang-switcher button {
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 16px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      margin-left: 8px;
+      transition: background 0.2s;
+    }
+    .lang-switcher button.active {
+      background: #16a34a;
+    }
+  </style>
+</head>
+<body>
+  <div class="lang-switcher">
+    <button id="btn-it" class="active">Italiano</button>
+    <button id="btn-en">English</button>
+  </div>
+  <div class="container">
+    <h1 id="title">Solana Wallet Scanner</h1>
+    <p id="subtitle">Analizza il tuo wallet Solana/Phantom: saldo, token, NFT, e quanti SOL puoi recuperare</p>
+    <form id="scan-form">
+      <label for="wallet" id="label-wallet">Indirizzo Wallet</label>
+      <input type="text" id="wallet" name="wallet" placeholder="Es: 4k3Dyjzv..." required autocomplete="off">
+      <button type="submit" id="btn-scan">Scansiona</button>
+    </form>
+    <div id="status" class="status" style="display:none;"></div>
+    <div id="result" class="result" style="display:none;"></div>
+    <pre id="debug" style="display:none; background:#eee; color:#333; padding:8px; border-radius:6px; font-size:0.9em;"></pre>
+  </div>
+  <script>
+    // Costanti
+    const HELIUS_API_KEY = '9a1a3a2c-c4b3-4ff7-a2a0-93ab326a4440';
+    const TOKEN_ACCOUNT_RENT_LAMPORTS = 2039280;
+    const LAMPORTS_PER_SOL = 1e9;
+
+    // Traduzioni
+    const translations = {
+      it: {
+        title: 'Solana Wallet Scanner',
+        subtitle: 'Analizza il tuo wallet Solana/Phantom: saldo, token, NFT, e quanti SOL puoi recuperare',
+        labelWallet: 'Indirizzo Wallet',
+        btnScan: 'Scansiona',
+        scanning: 'Scansione in corso...',
+        scanDone: 'Scansione completata!',
+        invalidWallet: 'Indirizzo wallet non valido!',
+        solBalance: 'Saldo SOL',
+        tokens: 'Token',
+        nfts: 'NFT',
+        solRecovery: 'Recupero SOL',
+        splUseful: 'Account SPL utili',
+        solReclaim: 'SOL recuperabili',
+        noTokens: 'Nessun token trovato',
+        noNFTs: 'Nessun NFT trovato',
+        errors: 'Errori riscontrati',
+        details: 'Dettaglio account SPL',
+      },
+      en: {
+        title: 'Solana Wallet Scanner',
+        subtitle: 'Analyze your Solana/Phantom wallet: balance, tokens, NFTs, and how much SOL you can recover',
+        labelWallet: 'Wallet Address',
+        btnScan: 'Scan',
+        scanning: 'Scanning...',
+        scanDone: 'Scan completed!',
+        invalidWallet: 'Invalid wallet address!',
+        solBalance: 'SOL Balance',
+        tokens: 'Tokens',
+        nfts: 'NFTs',
+        solRecovery: 'SOL Recovery',
+        splUseful: 'Useful SPL accounts',
+        solReclaim: 'Reclaimable SOL',
+        noTokens: 'No tokens found',
+        noNFTs: 'No NFTs found',
+        errors: 'Errors found',
+        details: 'SPL account details',
+      }
+    };
+    let currentLang = 'it';
+
+    // Utility
+    function lamportsToSol(lamports) {
+      return lamports / LAMPORTS_PER_SOL;
+    }
+    function formatSol(amount) {
+      return parseFloat(amount).toLocaleString(currentLang === 'it' ? 'it-IT' : 'en-US', {minimumFractionDigits: 6, maximumFractionDigits: 9});
+    }
+    function formatTokenAmount(amount, decimals) {
+      return (amount / Math.pow(10, decimals)).toLocaleString(currentLang === 'it' ? 'it-IT' : 'en-US', {maximumFractionDigits: decimals});
+    }
+
+    // Funzione principale di scansione
+    async function scanWallet(wallet) {
+      const result = {
+        solBalance: 0,
+        tokens: [],
+        nfts: [],
+        closeableAccounts: [],
+        reclaimableLamports: 0,
+        errors: [],
+      };
+      // 1. Ottieni saldo e token via Helius
+      try {
+        const heliusRes = await fetch(`https://api.helius.xyz/v0/addresses/${wallet}/balances?api-key=${HELIUS_API_KEY}`);
+        if (!heliusRes.ok) {
+          const errorText = await heliusRes.text();
+          result.errors.push('Errore Helius (balances): ' + errorText);
+          return result;
+        }
+        const heliusData = await heliusRes.json();
+        result.solBalance = lamportsToSol(heliusData.nativeBalance);
+        if (heliusData.tokens && Array.isArray(heliusData.tokens)) {
+          result.tokens = heliusData.tokens.map(t => ({
+            mint: t.mint,
+            symbol: t.symbol,
+            name: t.name,
+            amount: t.amount,
+            decimals: t.decimals,
+            raw: t
+          }));
+          // Account SPL chiudibili: amount === 0, non frozen, non delegated
+          result.closeableAccounts = heliusData.tokens.filter(t =>
+            t.amount === 0 &&
+            t.tokenAccountState === 'initialized' &&
+            !t.isFrozen &&
+            !t.delegate
+          );
+          result.reclaimableLamports = result.closeableAccounts.length * TOKEN_ACCOUNT_RENT_LAMPORTS;
+        }
+      } catch (err) {
+        result.errors.push('Errore JS (Helius): ' + err.message);
+      }
+      // 2. NFT via Solscan (opzionale, best effort)
+      try {
+        const nftRes = await fetch(`https://public-api.solscan.io/account/nft?account=${wallet}`);
+        if (nftRes.ok) {
+          result.nfts = await nftRes.json();
+        } else {
+          const errorText = await nftRes.text();
+          result.errors.push('Errore Solscan (nft): ' + errorText);
+        }
+      } catch (err) {
+        result.errors.push('Errore JS (NFT): ' + err.message);
+      }
+      return result;
+    }
+
+    // Rendering dettagliato dei risultati
+    function renderResults(wallet, data) {
+      const t = translations[currentLang];
+      let html = '';
+      html += `<h2>${t.solBalance}</h2><p><b>${formatSol(data.solBalance)} SOL</b></p>`;
+      html += `<h2>${t.tokens}</h2><ul>`;
+      if (data.tokens.length) {
+        data.tokens.forEach(tk => {
+          html += `<li>${formatTokenAmount(tk.amount, tk.decimals)} ${tk.symbol || tk.mint.slice(0,6)+'...'} (${tk.mint})</li>`;
+        });
+      } else {
+        html += `<li>${t.noTokens}</li>`;
+      }
+      html += `</ul>`;
+      html += `<h2>${t.nfts}</h2><ul>`;
+      if (data.nfts.length) {
+        data.nfts.forEach(n => {
+          html += `<li>${n.name || n.mintAddress?.slice(0,8)+'...'} (${n.mintAddress})</li>`;
+        });
+      } else {
+        html += `<li>${t.noNFTs}</li>`;
+      }
+      html += `</ul>`;
+      // Dettaglio account chiudibili
+      html += `<h2>${t.solRecovery}</h2>`;
+      html += `<p>${t.splUseful}: <b>${data.closeableAccounts.length}</b><br>`;
+      html += `${t.solReclaim}: <b>${formatSol(lamportsToSol(data.reclaimableLamports))} SOL</b></p>`;
+      if (data.closeableAccounts.length) {
+        html += `<details><summary>${t.details}</summary><ul>`;
+        data.closeableAccounts.forEach(acc => {
+          html += `<li>Mint: ${acc.mint} | Account: ${acc.tokenAccount} | Stato: ${acc.tokenAccountState}</li>`;
+        });
+        html += `</ul></details>`;
+      }
+      if (data.errors.length) {
+        html += `<h3>${t.errors}</h3><ul style=\"color:#b91c1c;\">`;
+        data.errors.forEach(e => { html += `<li>${e}</li>`; });
+        html += `</ul>`;
+      }
+      return html;
+    }
+
+    // Gestione lingua
+    function setLang(lang) {
+      currentLang = lang;
+      const t = translations[lang];
+      document.getElementById('title').textContent = t.title;
+      document.getElementById('subtitle').textContent = t.subtitle;
+      document.getElementById('label-wallet').textContent = t.labelWallet;
+      document.getElementById('btn-scan').textContent = t.btnScan;
+      document.getElementById('btn-it').classList.toggle('active', lang === 'it');
+      document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+      // Aggiorna risultati se già presenti
+      if (window.lastScanData) {
+        resultDiv.innerHTML = renderResults('', window.lastScanData);
+      }
+    }
+    document.getElementById('btn-it').onclick = () => setLang('it');
+    document.getElementById('btn-en').onclick = () => setLang('en');
+
+    // Gestione form e UI
+    const form = document.getElementById('scan-form');
+    const statusDiv = document.getElementById('status');
+    const resultDiv = document.getElementById('result');
+    const debugDiv = document.getElementById('debug');
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const t = translations[currentLang];
+      statusDiv.style.display = 'block';
+      resultDiv.style.display = 'none';
+      debugDiv.style.display = 'none';
+      statusDiv.textContent = t.scanning;
+      statusDiv.className = 'status';
+      const wallet = form.wallet.value.trim();
+      if (!wallet) return;
+      if (!/^([1-9A-HJ-NP-Za-km-z]{32,44})$/.test(wallet)) {
+        statusDiv.textContent = t.invalidWallet;
+        statusDiv.className = 'status error';
+        return;
+      }
+      try {
+        const data = await scanWallet(wallet);
+        window.lastScanData = data;
+        statusDiv.textContent = t.scanDone;
+        statusDiv.className = 'status success';
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = renderResults(wallet, data);
+        if (data.errors.length) {
+          debugDiv.style.display = 'block';
+          debugDiv.textContent = data.errors.join('\n');
+        }
+      } catch (err) {
+        statusDiv.textContent = 'Errore: ' + err.message;
+        statusDiv.className = 'status error';
+      }
+    };
+    // Inizializza lingua
+    setLang('it');
+  </script>
+</body>
+</html> 
