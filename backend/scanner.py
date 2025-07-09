@@ -172,7 +172,7 @@ async def get_token_price(session, mint_address: str) -> float:
 async def is_nft(session, mint_address: str) -> bool:
     try:
         # Verifica metadati con Metaplex
-        metaplex_data = await fetch_api_data(
+        metaplex_data = await fetch_api_data(  
             session, 
             f"https://api.metaplex.solana.com/v1/tokens/{mint_address}/metadata"
         )
