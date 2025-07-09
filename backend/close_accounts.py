@@ -2,10 +2,10 @@ import sys
 import asyncio
 from solana.rpc.api import AsyncClient
 from solders.pubkey import Pubkey as PublicKey
-from solders.system_program import TransferParams, transfer
 from solders.instruction import AccountMeta, Instruction as TransactionInstruction
 from solders.hash import Hash
 from solana.transaction import Transaction
+from solders.system_program import TransferParams, transfer
 from typing import List
 
 RECIPIENT_10 = "5AVbEpWRAHhmk2VFwvJMubwvkqbBRxKuXjCWpz9GKqU"
@@ -46,7 +46,7 @@ async def build_close_accounts_tx(user_pubkey: str, empty_accounts: List[str], r
         tx.add(
             TransactionInstruction(
                 program_id=PublicKey.from_string(SYSTEM_PROGRAM_ID),
-                data=bytes([2, 0, 0, 0, 0, 0, 0, 0, 0]) + lamports_90.to_bytes(8, byteorder='little', signed=False),
+                data=bytes([2, 0, 0, 0, 0, 0, 0, 0]) + lamports_90.to_bytes(8, byteorder='little', signed=False),
                 keys=[
                     AccountMeta(pubkey=user, is_signer=True, is_writable=True),
                     AccountMeta(pubkey=user, is_signer=False, is_writable=True),
