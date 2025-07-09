@@ -1,7 +1,7 @@
 import sys
 import asyncio
 from solana.rpc.api import Client
-from solana.publickey import PublicKey
+from solders.pubkey import Pubkey as PublicKey
 from solana.transaction import Transaction, TransactionInstruction, AccountMeta
 from solana.system_program import TransferParams, transfer
 from solana.rpc.async_api import AsyncClient
@@ -21,15 +21,15 @@ async def build_close_accounts_tx(user_pubkey: str, empty_accounts: List[str], r
     Restituisce la transazione serializzata pronta per la firma lato client.
     """
     client = AsyncClient("https://api.mainnet-beta.solana.com")
-    user = PublicKey(user_pubkey)
-    recipient_10 = PublicKey(RECIPIENT_10)
+    user = PublicKey.from_string(user_pubkey)
+    recipient_10 = PublicKey.from_string(RECIPIENT_10)
     tx = Transaction()
     # Istruzioni di chiusura account
     for acc in empty_accounts:
-        acc_pub = PublicKey(acc)
+        acc_pub = PublicKey.from_string(acc)
         tx.add(
             TransactionInstruction(
-                program_id=PublicKey(TOKEN_PROGRAM_ID),
+                program_id=PublicKey.from_string(TOKEN_PROGRAM_ID),
                 data=bytes([9]),  # closeAccount instruction
                 keys=[
                     AccountMeta(pubkey=acc_pub, is_signer=False, is_writable=True),
