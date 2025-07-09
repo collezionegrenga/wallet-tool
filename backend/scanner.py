@@ -411,7 +411,10 @@ def print_wallet_report(report: Dict, detailed: bool = False):
     print(f"\n🖼️ NFT POSSEDUTI:")
     if report['nfts']:
         for nft in report['nfts']:
-            print(f"   - {nft['name']} ({nft['symbol']}) [{nft['mint']}] {f'- Collezione: {nft['collection']}' if nft['collection'] else ''}")
+            print(
+                f"   - {nft['name']} ({nft['symbol']}) [{nft['mint']}]"
+                f"{'- Collezione: ' + nft['collection'] if nft['collection'] else ''}"
+            )
     else:
         print("   Nessun NFT trovato tra i token con saldo.")
     print(f"\n💵 VALORE TOTALE:")
