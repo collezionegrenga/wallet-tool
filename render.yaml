@@ -1,11 +1,15 @@
 services:
   - type: web
-    name: backend
-    env: docker
-    plan: free
-    repo: https://github.com/collezionegrenga/wallet-tool
+    name: wallet-tool-backend  # Cambia il nome per evitare conflitti
+    env: python
     region: frankfurt
-    dockerfilePath: ./Dockerfile
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: gunicorn app:app
+    wsgi:
+      application_port: 5000
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
     buildFilter:
       paths:
         - backend/**
