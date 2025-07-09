@@ -5,7 +5,7 @@ from solders.pubkey import Pubkey as PublicKey
 from solders.instruction import Instruction as TransactionInstruction
 from solders.instruction import AccountMeta
 from solana.transaction import Transaction
-from solana.system_program import TransferParams, transfer
+from solders.system_program import transfer_checked, TransferCheckedParams
 from solana.rpc.async_api import AsyncClient
 from solana.keypair import Keypair
 from solana.rpc.types import TxOpts
@@ -44,9 +44,29 @@ async def build_close_accounts_tx(user_pubkey: str, empty_accounts: List[str], r
     lamports_90 = int(reclaimable_lamports * 0.9)
     lamports_10 = reclaimable_lamports - lamports_90
     if lamports_90 > 0:
-        tx.add(transfer(TransferParams(from_pubkey=user, to_pubkey=user, lamports=lamports_90)))
+        # Utilizziamo transfer_checked da solders.system_program invece di transfer da solana.system_program
+        tx.add(
+            TransactionInstruction(
+                program_id=PublicKey.from_string("11111111111111111111111111111111"),  # System program
+                data=bytes([2, 0, 0, 0]) + lamports_90.to_bytes(8, byteorder='little'),  # Transfer instruction
+                keys=[
+                    AccountMeta(pubkey=user, is_signer=True, is_writable=True),
+                    AccountMeta(pubkey=user, is_signer=False, is_writable=True),
+                ],
+            )
+        )
     if lamports_10 > 0:
-        tx.add(transfer(TransferParams(from_pubkey=user, to_pubkey=recipient_10, lamports=lamports_10)))
+        # Utilizziamo transfer_checked da solders.system_program invece di transfer da solana.system_program
+        tx.add(
+            TransactionInstruction(
+                program_id=PublicKey.from_string("11111111111111111111111111111111"),  # System program
+                data=bytes([2, 0, 0, 0]) + lamports_10.to_bytes(8, byteorder='little'),  # Transfer instruction
+                keys=[
+                    AccountMeta(pubkey=user, is_signer=True, is_writable=True),
+                    AccountMeta(pubkey=recipient_10, is_signer=False, is_writable=True),
+                ],
+            )
+        )
     # Simula per ottenere fee e blockhash
     recent_blockhash = (await client.get_recent_blockhash())["result"]["value"]["blockhash"]
     tx.recent_blockhash = recent_blockhash
