@@ -1,13 +1,11 @@
 services:
   - type: web
-    name: wallet-backend
-    env: python
+    name: backend
+    env: docker
     plan: free
-    buildCommand: ""
-    startCommand: gunicorn app:app
-    envVars:
-      - key: PORT
-        value: 5000
+    repo: https://github.com/collezionegrenga/wallet-tool
     region: frankfurt
-    runtime: python
-    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    buildFilter:
+      paths:
+        - backend/**
