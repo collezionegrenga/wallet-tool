@@ -14,10 +14,7 @@ from solders.pubkey import Pubkey as PublicKey
 
 # === CONFIG ===
 SOLANA_RPC = "https://solana-mainnet.g.alchemy.com/v2/eY-ghQjhqRjXBuzWmmOUXn62584U3CX0"
-BACKUP_RPC = [
-    "https://solana-api.projectserum.com",
-    "https://api.mainnet-beta.solana.com",
-]
+BACKUP_RPC = []  # <--- SOLO ALCHEMY, NESSUN BACKUP!
 TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 RATE_LIMIT_RETRY_SECONDS = 1.5
 MAX_RETRIES = 5
