@@ -237,10 +237,11 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                     pubkey_str = str(pubkey_obj)
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
 
+                    # ECCO IL FIX: encoding="jsonParsed" PARAMETRO NOMINATO
                     account_info_resp = solana_client.execute_with_retry(
                         "get_account_info",
                         pubkey_obj,
-                        "jsonParsed"  # <-- encoding direttamente come stringa!
+                        encoding="jsonParsed"
                     )
                     account_info = account_info_resp.value
                     if not account_info or "parsed" not in account_info.get("data", {}):
@@ -513,7 +514,7 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             pubkey_str = str(acc.pubkey)
             acc_pub = PublicKey.from_string(pubkey_str)
             account_info_resp = solana_client.execute_with_retry(
-                "get_account_info", acc_pub, "jsonParsed"
+                "get_account_info", acc_pub, encoding="jsonParsed"
             )
             account_info = account_info_resp.value
             if not account_info or "parsed" not in account_info.get("data", {}):
