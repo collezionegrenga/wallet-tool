@@ -7,6 +7,7 @@ from solders.system_program import ID as SYSTEM_PROGRAM_ID
 from solders.system_program import transfer as system_transfer
 from solana.transaction import Transaction
 from typing import List
+from config import ALCHEMY_RPC
 
 RECIPIENT_10 = "5AVbEpWRAHhmk2VFwvJMubwvkqbBRxKuXjCWpz9GKqU"
 TOKEN_PROGRAM_ID = PublicKey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
@@ -30,7 +31,7 @@ async def build_close_accounts_tx(user_pubkey: str, empty_accounts: List[str], r
     - 10% all'indirizzo fisso
     Restituisce la transazione serializzata pronta per la firma lato client.
     """
-    client = AsyncClient("https://solana-mainnet.g.alchemy.com/v2/eY-ghQjhqRjXBuzWmmOUXn62584U3CX0")
+    client = AsyncClient(ALCHEMY_RPC)
     user = PublicKey.from_string(user_pubkey)
     recipient_10 = PublicKey.from_string(RECIPIENT_10)
     tx = Transaction()
