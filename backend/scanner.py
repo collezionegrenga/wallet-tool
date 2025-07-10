@@ -14,7 +14,7 @@ from solders.pubkey import Pubkey as PublicKey
 
 # === CONFIG ===
 SOLANA_RPC = "https://solana-mainnet.g.alchemy.com/v2/eY-ghQjhqRjXBuzWmmOUXn62584U3CX0"
-BACKUP_RPC = []  # <--- SOLO ALCHEMY, NESSUN BACKUP!
+BACKUP_RPC = []  # SOLO ALCHEMY, NESSUN BACKUP!
 TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 RATE_LIMIT_RETRY_SECONDS = 1.5
 MAX_RETRIES = 5
@@ -218,9 +218,9 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             sol_balance = lamports_to_sol(sol_balance_resp.value)
             print(f"✅ Bilancio SOL trovato: {sol_balance}")
 
-            print(f"ℹ️ Richiesta get_token_accounts_by_owner per: {wallet_address_str}")
+            print(f"ℹ️ Richiesta get_token_accounts_by_owner_json_parsed per: {wallet_address_str}")
             resp = solana_client.execute_with_retry(
-                "get_token_accounts_by_owner",
+                "get_token_accounts_by_owner_json_parsed",
                 pubkey,
                 TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
             )
@@ -236,12 +236,11 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                 for acc in accounts:
                     pubkey_obj = acc.pubkey
                     pubkey_str = str(pubkey_obj)
-                    print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
+                    print(f"ℹ️ Richiesta get_account_info_json_parsed per: {pubkey_str}")
 
                     account_info_resp = solana_client.execute_with_retry(
-                        "get_account_info",
-                        pubkey_obj,
-                        encoding="jsonParsed"
+                        "get_account_info_json_parsed",
+                        pubkey_obj
                     )
                     account_info = account_info_resp.value
                     if not account_info or "parsed" not in account_info.get("data", {}):
@@ -499,7 +498,7 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             return
 
         resp = solana_client.execute_with_retry(
-            "get_token_accounts_by_owner",
+            "get_token_accounts_by_owner_json_parsed",
             pubkey,
             TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
         )
@@ -514,7 +513,7 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             pubkey_str = str(acc.pubkey)
             acc_pub = PublicKey.from_string(pubkey_str)
             account_info_resp = solana_client.execute_with_retry(
-                "get_account_info", acc_pub, encoding="jsonParsed"
+                "get_account_info_json_parsed", acc_pub
             )
             account_info = account_info_resp.value
             if not account_info or "parsed" not in account_info.get("data", {}):
