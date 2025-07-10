@@ -27,7 +27,14 @@ from scanner import scan_wallet, batch_process, generate_recovery_script
 from close_accounts import build_close_accounts_tx
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
-CORS(app)
+
+# Imposta qui il dominio del frontend Netlify (più sicuro)
+CORS(app, origins=[
+    "https://686fbbe3b9ebdf0540300bbe--wallet-tool.netlify.app/",
+    "http://localhost:3000",  # se sviluppi in locale
+    "http://localhost:5173",
+    "https://netlify.app"
+])
 
 # === CACHE E RATE LIMIT ===
 scan_cache = {}
@@ -66,14 +73,12 @@ class ScanManager:
     
     def _run_scan_thread(self, scan_id, wallet_address):
         try:
-            # Configura event loop per Windows se necessario
             if sys.platform == 'win32':
                 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             report = loop.run_until_complete(scan_wallet(wallet_address, detailed=True))
             loop.close()
-            # Aggiorna stato e cache
             with self.lock:
                 if report:
                     self.pending_scans[scan_id]["status"] = "completed"
@@ -95,21 +100,17 @@ scan_manager = ScanManager()
 
 @app.before_request
 def limit_request_rate():
-    """Limita le richieste per indirizzo IP"""
     ip = request.remote_addr
     current_time = time.time()
-    # Pulisci vecchie richieste
     if ip in request_limits:
         request_limits[ip] = [timestamp for timestamp in request_limits[ip] 
                              if current_time - timestamp < REQUEST_WINDOW]
     else:
         request_limits[ip] = []
-    # Controlla limite
     if len(request_limits[ip]) >= MAX_REQUESTS_PER_MINUTE:
         return jsonify({
             "error": "Troppe richieste. Riprova tra qualche minuto."
         }), 429
-    # Registra richiesta
     request_limits[ip].append(current_time)
 
 @app.route("/")
@@ -118,7 +119,6 @@ def index():
 
 @app.route("/scan", methods=["POST"])
 def scan():
-    """Avvia una scansione asincrona"""
     wallet_address = request.form.get("wallet")
     wallet_type = request.form.get("type", "solana")
     if not wallet_address:
@@ -127,7 +127,6 @@ def scan():
         return jsonify({"error": "Tipo wallet non supportato"}), 400
     if wallet_type == "coinbase":
         return jsonify({"error": "Supporto Coinbase in arrivo. Al momento solo Solana/Phantom."}), 400
-    # Usa la cache se disponibile
     if wallet_address in scan_cache:
         cache_entry = scan_cache[wallet_address]
         if time.time() - cache_entry["timestamp"] < CACHE_EXPIRY:
@@ -137,7 +136,6 @@ def scan():
                 "cached": True,
                 "result": cache_entry["data"]
             })
-    # Genera ID scansione
     scan_id = f"{int(time.time())}-{wallet_address[:8]}"
     scan_manager.register_scan(scan_id, wallet_address)
     return jsonify({
@@ -148,7 +146,6 @@ def scan():
 
 @app.route("/status/<scan_id>", methods=["GET"])
 def check_status(scan_id):
-    """Controlla lo stato di una scansione"""
     status = scan_manager.get_scan_status(scan_id)
     if status["status"] == "not_found":
         return jsonify({"error": "Scansione non trovata"}), 404
@@ -165,7 +162,6 @@ def check_status(scan_id):
 
 @app.route("/batch", methods=["POST"])
 def batch_scan():
-    """Endpoint per scansione batch"""
     if "file" not in request.files:
         return jsonify({"error": "Nessun file caricato"}), 400
     file = request.files["file"]
@@ -198,7 +194,6 @@ def batch_scan():
 
 @app.route("/recovery", methods=["POST"])
 def generate_recovery():
-    """Genera script di recupero rent"""
     wallet_address = request.form.get("wallet")
     if not wallet_address:
         return jsonify({"error": "Nessun wallet inserito"}), 400
@@ -220,7 +215,6 @@ def generate_recovery():
 
 @app.route("/download/<path:filename>")
 def download_file(filename):
-    """Download di file generati"""
     directory = os.path.join(app.root_path, "static", "scripts")
     return Response(
         open(os.path.join(directory, filename), 'rb').read(),
@@ -238,21 +232,26 @@ def server_error(e):
 
 @app.route("/api/scan/<wallet>", methods=["GET"])
 def api_scan(wallet):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    data = loop.run_until_complete(scan_wallet(wallet, export_format="", detailed=False))
-    if not data:
-        return jsonify({"error": "Scan failed"}), 400
-    reclaimable_lamports = int(data.get("rent_reclaimable", 0) * 1_000_000_000)
-    reclaimable_sol = round(reclaimable_lamports * 0.9 / 1_000_000_000, 6)
-    return jsonify({
-        "sol_balance": data.get("sol_balance", 0),
-        "tokens": data.get("tokens", []),
-        "nfts": data.get("nfts", []),
-        "empty_accounts": [acc["pubkey"] for acc in data.get("empty_accounts", []) if not acc.get("is_nft")],
-        "reclaimable_lamports": reclaimable_lamports,
-        "reclaimable_sol": reclaimable_sol
-    })
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        data = loop.run_until_complete(scan_wallet(wallet, export_format="", detailed=False))
+        if not data:
+            logger.error(f"Scan failed for wallet {wallet}")
+            return jsonify({"error": "Scan failed"}), 400
+        reclaimable_lamports = int(data.get("rent_reclaimable", 0) * 1_000_000_000)
+        reclaimable_sol = round(reclaimable_lamports * 0.9 / 1_000_000_000, 6)
+        return jsonify({
+            "sol_balance": data.get("sol_balance", 0),
+            "tokens": data.get("tokens", []),
+            "nfts": data.get("nfts", []),
+            "empty_accounts": [acc["pubkey"] for acc in data.get("empty_accounts", []) if not acc.get("is_nft")],
+            "reclaimable_lamports": reclaimable_lamports,
+            "reclaimable_sol": reclaimable_sol
+        })
+    except Exception as e:
+        logger.error(f"/api/scan error for {wallet}: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/close", methods=["POST"])
 def api_close():
@@ -278,8 +277,8 @@ def send_signed_tx():
         from solana.rpc.types import TxOpts
         from solana.transaction import Transaction
         async def send():
-            # Usa la tua endpoint Alchemy anche qui!
-            async with AsyncClient("https://solana-mainnet.g.alchemy.com/v2/eY-ghQjhqRjXBuzWmmOUXn62584U3CX0") as client:
+            from config import ALCHEMY_RPC
+            async with AsyncClient(ALCHEMY_RPC) as client:
                 tx_bytes = base64.b64decode(signed_tx)
                 tx = Transaction.deserialize(tx_bytes)
                 resp = await client.send_raw_transaction(tx.serialize(), opts=TxOpts(skip_preflight=True))
