@@ -201,6 +201,14 @@ async def get_nft_metadata(session, mint_address: str) -> dict:
     nft_metadata_cache[mint_address] = fallback
     return fallback
 
+def extract_parsed_info(account_info):
+    # account_info is an AccountJSON, use attributes, not dict methods
+    try:
+        # account_info.data.parsed.info is a dict
+        return account_info.data.parsed.info
+    except Exception:
+        return None
+
 async def scan_wallet(wallet_address: str, export_format: str = None, detailed: bool = False):
     print(f"🔎 Scansione wallet: {wallet_address}")
     start_time = time.time()
@@ -243,11 +251,11 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                         pubkey_obj
                     )
                     account_info = account_info_resp.value
-                    if not account_info or "parsed" not in account_info.get("data", {}):
+                    parsed_data = extract_parsed_info(account_info)
+                    if not account_info or not parsed_data:
                         continue
 
-                    lamports = account_info.get("lamports", 0)
-                    parsed_data = account_info["data"]["parsed"]["info"]
+                    lamports = getattr(account_info, "lamports", 0)
                     mint = parsed_data["mint"]
                     amount = int(parsed_data["tokenAmount"]["amount"])
                     decimals = int(parsed_data["tokenAmount"]["decimals"])
@@ -516,10 +524,10 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
                 "get_account_info_json_parsed", acc_pub
             )
             account_info = account_info_resp.value
-            if not account_info or "parsed" not in account_info.get("data", {}):
+            parsed_data = extract_parsed_info(account_info)
+            if not account_info or not parsed_data:
                 continue
 
-            parsed_data = account_info["data"]["parsed"]["info"]
             amount = int(parsed_data["tokenAmount"]["amount"])
             if amount == 0:
                 empty_accounts.append(pubkey_str)
