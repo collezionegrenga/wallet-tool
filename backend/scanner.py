@@ -14,7 +14,7 @@ from solders.pubkey import Pubkey as PublicKey
 
 # === CONFIG ===
 SOLANA_RPC = "https://solana-mainnet.g.alchemy.com/v2/eY-ghQjhqRjXBuzWmmOUXn62584U3CX0"
-BACKUP_RPC = []  # SOLO ALCHEMY, NESSUN BACKUP!
+BACKUP_RPC = []
 TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 RATE_LIMIT_RETRY_SECONDS = 1.5
 MAX_RETRIES = 5
@@ -68,7 +68,6 @@ def format_number(num: float) -> str:
     else:
         return f"{num:.4f}".rstrip('0').rstrip('.') if '.' in f"{num:.4f}" else f"{num}"
 
-# === API HELPERS ===
 async def fetch_api_data(session, url, headers=None):
     for attempt in range(MAX_RETRIES):
         try:
@@ -202,9 +201,7 @@ async def get_nft_metadata(session, mint_address: str) -> dict:
     return fallback
 
 def extract_parsed_info(account_info):
-    # account_info is an AccountJSON, use attributes, not dict methods
     try:
-        # account_info.data.parsed.info is a dict
         return account_info.data.parsed.info
     except Exception:
         return None
@@ -232,7 +229,7 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                 pubkey,
                 TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
             )
-            accounts = resp.value
+            accounts = resp.value if isinstance(resp.value, list) else []
             print(f"✅ Trovati {len(accounts)} token account\n")
 
             token_data = []
@@ -315,8 +312,8 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                 "sol_balance": sol_balance,
                 "sol_value_usd": sol_value_usd,
                 "token_accounts": len(accounts),
-                "empty_accounts": len(empty_accounts),
-                "nft_accounts": len(nft_data) + sum(1 for acc in empty_accounts if acc["is_nft"]),
+                "empty_accounts": empty_accounts,
+                "nft_accounts": len(nft_data) + sum(1 for acc in empty_accounts if acc.get("is_nft")),
                 "rent_reclaimable": rent_reclaimable_sol,
                 "rent_reclaimable_usd": rent_reclaimable_usd,
                 "tokens": token_data,
@@ -335,11 +332,41 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
         except Exception as e:
             print(f"❌ Errore durante la scansione: {str(e)}")
             print(traceback.format_exc())
-            return None
+            return {
+                "wallet": wallet_address,
+                "sol_balance": 0,
+                "sol_value_usd": 0,
+                "token_accounts": 0,
+                "empty_accounts": [],
+                "nft_accounts": 0,
+                "rent_reclaimable": 0,
+                "rent_reclaimable_usd": 0,
+                "tokens": [],
+                "nfts": [],
+                "total_token_value_usd": 0,
+                "grand_total_usd": 0,
+                "scan_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "execution_time": time.time() - start_time
+            }
     except Exception as e:
         print(f"❌ Errore generale: {str(e)}")
         print(traceback.format_exc())
-        return None
+        return {
+            "wallet": wallet_address,
+            "sol_balance": 0,
+            "sol_value_usd": 0,
+            "token_accounts": 0,
+            "empty_accounts": [],
+            "nft_accounts": 0,
+            "rent_reclaimable": 0,
+            "rent_reclaimable_usd": 0,
+            "tokens": [],
+            "nfts": [],
+            "total_token_value_usd": 0,
+            "grand_total_usd": 0,
+            "scan_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "execution_time": time.time() - start_time
+        }
 
 def print_wallet_report(report: dict, detailed: bool = False):
     print(f"\n{'='*60}")
@@ -348,7 +375,7 @@ def print_wallet_report(report: dict, detailed: bool = False):
     print(f"💰 SOL Balance: {report['sol_balance']:.6f} (\${report['sol_value_usd']:.2f})")
     print(f"\n📁 STATISTICHE ACCOUNT:")
     print(f"   - Token account totali: {report['token_accounts']}")
-    print(f"   - Account vuoti: {report['empty_accounts']}")
+    print(f"   - Account vuoti: {len(report['empty_accounts'])}")
     print(f"   - Account NFT: {report['nft_accounts']}")
     print(f"   - SOL recuperabili: {report['rent_reclaimable']:.6f} (\${report['rent_reclaimable_usd']:.2f})")
     print(f"\n💎 TOKEN RESIDUI:")
@@ -402,7 +429,7 @@ def export_report(report: dict, wallet_address: str, format_type: str):
                 writer.writerow(["SOL Balance", report["sol_balance"]])
                 writer.writerow(["SOL Value USD", report["sol_value_usd"]])
                 writer.writerow(["Token Accounts", report["token_accounts"]])
-                writer.writerow(["Empty Accounts", report["empty_accounts"]])
+                writer.writerow(["Empty Accounts", len(report["empty_accounts"])])
                 writer.writerow(["NFT Accounts", report["nft_accounts"]])
                 writer.writerow(["Rent Reclaimable SOL", report["rent_reclaimable"]])
                 writer.writerow(["Rent Reclaimable USD", report["rent_reclaimable_usd"]])
@@ -426,7 +453,7 @@ def export_report(report: dict, wallet_address: str, format_type: str):
                 txtfile.write(f"ACCOUNT STATISTICS\n")
                 txtfile.write(f"------------------------------------------\n")
                 txtfile.write(f"Token Accounts: {report['token_accounts']}\n")
-                txtfile.write(f"Empty Accounts: {report['empty_accounts']}\n")
+                txtfile.write(f"Empty Accounts: {len(report['empty_accounts'])}\n")
                 txtfile.write(f"NFT Accounts: {report['nft_accounts']}\n")
                 txtfile.write(f"Rent Reclaimable: {report['rent_reclaimable']:.6f} SOL (\${report['rent_reclaimable_usd']:.2f})\n\n")
                 txtfile.write(f"TOKEN BALANCES\n")
@@ -486,7 +513,7 @@ async def batch_process(input_file: str, export_format: str = None, detailed: bo
                     for r in results:
                         writer.writerow([
                             r["wallet"], r["sol_balance"], r["sol_value_usd"],
-                            r["token_accounts"], r["empty_accounts"], r["nft_accounts"],
+                            r["token_accounts"], len(r["empty_accounts"]), r["nft_accounts"],
                             r["rent_reclaimable"], r["rent_reclaimable_usd"],
                             r["total_token_value_usd"], r["grand_total_usd"]
                         ])
@@ -510,7 +537,7 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             pubkey,
             TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
         )
-        accounts = resp.value
+        accounts = resp.value if isinstance(resp.value, list) else []
         if not accounts:
             print(f"❌ Nessun token account trovato per wallet {wallet_address_str}")
             return
