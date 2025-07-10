@@ -9,7 +9,7 @@ import traceback
 from datetime import datetime
 
 from solana.rpc.api import Client
-from solana.rpc.types import TokenAccountOpts, AccountInfoOpts
+from solana.rpc.types import TokenAccountOpts
 from solders.pubkey import Pubkey as PublicKey
 
 # === CONFIG ===
@@ -218,7 +218,6 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             print(f"✅ Bilancio SOL trovato: {sol_balance}")
 
             print(f"ℹ️ Richiesta get_token_accounts_by_owner per: {wallet_address_str}")
-            # Qui usiamo TokenAccountOpts!
             resp = solana_client.execute_with_retry(
                 "get_token_accounts_by_owner",
                 pubkey,
@@ -238,11 +237,10 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                     pubkey_str = str(pubkey_obj)
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
 
-                    # Qui usiamo AccountInfoOpts!
                     account_info_resp = solana_client.execute_with_retry(
                         "get_account_info",
                         pubkey_obj,
-                        AccountInfoOpts(encoding="jsonParsed")
+                        "jsonParsed"  # <-- encoding direttamente come stringa!
                     )
                     account_info = account_info_resp.value
                     if not account_info or "parsed" not in account_info.get("data", {}):
@@ -301,7 +299,6 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             sol_value_usd = sol_balance * sol_price
             grand_total_usd = total_value_usd + sol_value_usd
 
-            # Mostra solo il 90% come recuperabile
             rent_reclaimable_sol = lamports_to_sol(total_rent_reclaimable) * 0.9
             rent_reclaimable_usd = lamports_to_sol(total_rent_reclaimable) * sol_price * 0.9
 
@@ -516,7 +513,7 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             pubkey_str = str(acc.pubkey)
             acc_pub = PublicKey.from_string(pubkey_str)
             account_info_resp = solana_client.execute_with_retry(
-                "get_account_info", acc_pub, AccountInfoOpts(encoding="jsonParsed")
+                "get_account_info", acc_pub, "jsonParsed"
             )
             account_info = account_info_resp.value
             if not account_info or "parsed" not in account_info.get("data", {}):
