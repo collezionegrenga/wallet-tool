@@ -13,8 +13,11 @@ from solana.rpc.types import TokenAccountOpts
 from solders.pubkey import Pubkey as PublicKey
 
 # === CONFIG ===
-SOLANA_RPC = "https://api.mainnet-beta.solana.com"
-BACKUP_RPC = ["https://rpc.ankr.com/solana", "https://solana-api.projectserum.com"]
+SOLANA_RPC = "https://solana-mainnet.g.alchemy.com/v2/eY-ghQjhqRjXBuzWmmOUXn62584U3CX0"
+BACKUP_RPC = [
+    "https://solana-api.projectserum.com",
+    "https://api.mainnet-beta.solana.com",
+]
 TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 RATE_LIMIT_RETRY_SECONDS = 1.5
 MAX_RETRIES = 5
@@ -40,18 +43,20 @@ class EnhancedSolanaClient:
 
     def execute_with_retry(self, method_name, *args, **kwargs):
         retries = 0
+        last_exc = None
         while retries < MAX_RETRIES:
             try:
                 client = self.get_current_client()
                 method = getattr(client, method_name)
                 return method(*args, **kwargs)
             except Exception as e:
-                retries += 1
-                if retries >= MAX_RETRIES:
-                    raise Exception(f"Failed after {MAX_RETRIES} attempts: {str(e)}")
-                print(f"RPC error: {str(e)}. Rotating endpoint and retrying ({retries}/{MAX_RETRIES})...")
+                last_exc = e
+                msg = str(e)
+                print(f"RPC error on endpoint {getattr(client, 'endpoint_uri', client)}: {type(e).__name__}: {msg}. Rotating endpoint and retrying ({retries+1}/{MAX_RETRIES})...")
                 self.rotate_client()
                 time.sleep(RATE_LIMIT_RETRY_SECONDS)
+                retries += 1
+        raise Exception(f"Failed after {MAX_RETRIES} attempts: {last_exc} ({type(last_exc).__name__})")
 
 solana_client = EnhancedSolanaClient(SOLANA_RPC, BACKUP_RPC)
 
@@ -199,7 +204,6 @@ async def get_nft_metadata(session, mint_address: str) -> dict:
     nft_metadata_cache[mint_address] = fallback
     return fallback
 
-# === SCAN WALLET ===
 async def scan_wallet(wallet_address: str, export_format: str = None, detailed: bool = False):
     print(f"🔎 Scansione wallet: {wallet_address}")
     start_time = time.time()
@@ -237,7 +241,6 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                     pubkey_str = str(pubkey_obj)
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
 
-                    # ECCO IL FIX: encoding="jsonParsed" PARAMETRO NOMINATO
                     account_info_resp = solana_client.execute_with_retry(
                         "get_account_info",
                         pubkey_obj,
