@@ -11,10 +11,10 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 from solana.rpc.api import Client
-from solana.rpc.types import TokenAccountOpts
+from solana.rpc.types import TokenAccountOpts, AccountInfoOpts
 from solders.pubkey import Pubkey as PublicKey
 
-# === CONFIGURAZIONE ===
+# === CONFIGURATION ===
 SOLANA_RPC = "https://api.mainnet-beta.solana.com"
 BACKUP_RPC = ["https://rpc.ankr.com/solana", "https://solana-api.projectserum.com"]
 TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
@@ -240,7 +240,6 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                     pubkey_str = str(pubkey_obj)
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
 
-                    from solana.rpc.types import AccountInfoOpts
                     opts = AccountInfoOpts(encoding="jsonParsed")
                     account_info_resp = solana_client.execute_with_retry(
                         "get_account_info",
@@ -496,7 +495,6 @@ async def batch_process(input_file: str, export_format: str = None, detailed: bo
 
 def generate_recovery_script(wallet_address: str, output_file: str = None):
     try:
-        # Validazione indirizzo wallet
         try:
             pubkey = PublicKey.from_string(wallet_address)
             wallet_address_str = str(pubkey)
@@ -504,7 +502,6 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             print(f"❌ Indirizzo wallet non valido: {wallet_address}")
             return
 
-        # Ottieni token accounts del wallet
         resp = solana_client.execute_with_retry(
             "get_token_accounts_by_owner",
             pubkey,
@@ -516,7 +513,6 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             return
 
         empty_accounts = []
-        from solana.rpc.types import AccountInfoOpts
         opts = AccountInfoOpts(encoding="jsonParsed")
 
         for acc in accounts:
@@ -536,24 +532,20 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             print("❌ Nessun account vuoto trovato da cui recuperare rent.")
             return
 
-        # Costruisci script bash riga per riga
         script = "#!/usr/bin/env bash\n\n"
         script += "# Script per recuperare SOL da account token vuoti\n"
         script += f"# Generato il {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
         script += f"# Per wallet: {wallet_address_str}\n\n"
-
         script += "# Requisiti: Solana CLI installata e configurata\n\n"
-
-        script += "WALLET_ADDRESS=\$(solana address)\n"
-        script += f'if [ "\$WALLET_ADDRESS" != "{wallet_address_str}" ]; then\n'
-        script += f'    echo "⚠️  ATTENZIONE: L\'indirizzo del wallet Solana CLI (\$WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address_str})."\n'
+        script += "WALLET_ADDRESS=$(solana address)\n"
+        script += f'if [ "$WALLET_ADDRESS" != "{wallet_address_str}" ]; then\n'
+        script += f'    echo "⚠️  ATTENZIONE: L\'indirizzo del wallet Solana CLI ($WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address_str})."\n'
         script += '    read -p "Vuoi continuare? (s/n): " confirm\n'
-        script += '    if [ "\$confirm" != "s" ]; then\n'
+        script += '    if [ "$confirm" != "s" ]; then\n'
         script += '        echo "Operazione annullata."\n'
         script += '        exit 1\n'
         script += '    fi\n'
         script += 'fi\n\n'
-
         script += f'echo "🔄 Chiusura di {len(empty_accounts)} account token vuoti..."\n\n'
 
         for i, account in enumerate(empty_accounts):
@@ -574,9 +566,8 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             print("📜 SCRIPT DI RECUPERO RENT")
             print("="*60 + "\n")
             print(script)
-
     except Exception as e:
         print(f"❌ Errore durante la generazione dello script: {str(e)}")
 
-async def main():
-    
+# Note: This file contains only function definitions. The main() function, if any, must be defined elsewhere,
+# for example in your main runner or app.py. This avoids the IndentationError when imported.
