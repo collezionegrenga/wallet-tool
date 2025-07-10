@@ -9,6 +9,7 @@ import traceback
 from datetime import datetime
 
 from solana.rpc.api import Client
+from solana.rpc.types import TokenAccountOpts, AccountInfoOpts
 from solders.pubkey import Pubkey as PublicKey
 
 # === CONFIG ===
@@ -209,7 +210,7 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
         except Exception as e:
             print(f"❌ Indirizzo wallet non valido: {wallet_address}: {e}")
             return None
-        
+
         try:
             print(f"ℹ️ Richiesta get_balance per: {pubkey}")
             sol_balance_resp = solana_client.execute_with_retry("get_balance", pubkey)
@@ -217,29 +218,31 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             print(f"✅ Bilancio SOL trovato: {sol_balance}")
 
             print(f"ℹ️ Richiesta get_token_accounts_by_owner per: {wallet_address_str}")
+            # Qui usiamo TokenAccountOpts!
             resp = solana_client.execute_with_retry(
-                "get_token_accounts_by_owner", 
-                pubkey, 
-                {"program_id": TOKEN_PROGRAM_ID}
+                "get_token_accounts_by_owner",
+                pubkey,
+                TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
             )
             accounts = resp.value
             print(f"✅ Trovati {len(accounts)} token account\n")
-            
+
             token_data = []
             nft_data = []
             empty_accounts = []
             total_rent_reclaimable = 0
-            
+
             async with aiohttp.ClientSession() as session:
                 for acc in accounts:
                     pubkey_obj = acc.pubkey
                     pubkey_str = str(pubkey_obj)
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
 
+                    # Qui usiamo AccountInfoOpts!
                     account_info_resp = solana_client.execute_with_retry(
                         "get_account_info",
                         pubkey_obj,
-                        {"encoding": "jsonParsed"}
+                        AccountInfoOpts(encoding="jsonParsed")
                     )
                     account_info = account_info_resp.value
                     if not account_info or "parsed" not in account_info.get("data", {}):
@@ -290,14 +293,14 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                                 "value_usd": value_usd,
                                 "decimals": decimals
                             })
-            
+
             token_data.sort(key=lambda x: x["value_usd"], reverse=True)
             total_value_usd = sum(t["value_usd"] for t in token_data)
             async with aiohttp.ClientSession() as session:
                 sol_price = await get_token_price(session, "So11111111111111111111111111111111111111112")
             sol_value_usd = sol_balance * sol_price
             grand_total_usd = total_value_usd + sol_value_usd
-            
+
             # Mostra solo il 90% come recuperabile
             rent_reclaimable_sol = lamports_to_sol(total_rent_reclaimable) * 0.9
             rent_reclaimable_usd = lamports_to_sol(total_rent_reclaimable) * sol_price * 0.9
@@ -318,12 +321,12 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                 "scan_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "execution_time": time.time() - start_time
             }
-            
+
             print_wallet_report(report, detailed)
             if export_format:
                 export_report(report, wallet_address_str, export_format)
             return report
-            
+
         except Exception as e:
             print(f"❌ Errore durante la scansione: {str(e)}")
             print(traceback.format_exc())
@@ -500,7 +503,7 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
         resp = solana_client.execute_with_retry(
             "get_token_accounts_by_owner",
             pubkey,
-            {"program_id": TOKEN_PROGRAM_ID}
+            TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
         )
         accounts = resp.value
         if not accounts:
@@ -512,11 +515,13 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
         for acc in accounts:
             pubkey_str = str(acc.pubkey)
             acc_pub = PublicKey.from_string(pubkey_str)
-            account_info_resp = solana_client.execute_with_retry("get_account_info", acc_pub, {"encoding": "jsonParsed"})
+            account_info_resp = solana_client.execute_with_retry(
+                "get_account_info", acc_pub, AccountInfoOpts(encoding="jsonParsed")
+            )
             account_info = account_info_resp.value
             if not account_info or "parsed" not in account_info.get("data", {}):
                 continue
-            
+
             parsed_data = account_info["data"]["parsed"]["info"]
             amount = int(parsed_data["tokenAmount"]["amount"])
             if amount == 0:
