@@ -236,7 +236,7 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
             
             async with aiohttp.ClientSession() as session:
                 for acc in accounts:
-                    pubkey_obj = acc.pubkey  # già Pubkey!
+                    pubkey_obj = acc.pubkey
                     pubkey_str = str(pubkey_obj)
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
 
@@ -343,12 +343,12 @@ def print_wallet_report(report: Dict, detailed: bool = False):
     print(f"\n{'='*60}")
     print(f"📊 REPORT WALLET: {report['wallet']}")
     print(f"{'='*60}")
-    print(f"💰 SOL Balance: {report['sol_balance']:.6f} (${report['sol_value_usd']:.2f})")
+    print(f"💰 SOL Balance: {report['sol_balance']:.6f} (\${report['sol_value_usd']:.2f})")
     print(f"\n📁 STATISTICHE ACCOUNT:")
     print(f"   - Token account totali: {report['token_accounts']}")
     print(f"   - Account vuoti: {report['empty_accounts']}")
     print(f"   - Account NFT: {report['nft_accounts']}")
-    print(f"   - SOL recuperabili: {report['rent_reclaimable']:.6f} (${report['rent_reclaimable_usd']:.2f})")
+    print(f"   - SOL recuperabili: {report['rent_reclaimable']:.6f} (\${report['rent_reclaimable_usd']:.2f})")
     print(f"\n💎 TOKEN RESIDUI:")
     if report['tokens']:
         if detailed:
@@ -358,7 +358,7 @@ def print_wallet_report(report: Dict, detailed: bool = False):
                 print(f"{token['symbol']:<10} {token['name'][:20]:<20} {format_number(token['balance']):<16} ${token['price_usd']:<11.6f} ${token['value_usd']:<11.2f}")
         else:
             for token in report['tokens']:
-                value_str = f" (${token['value_usd']:.2f})" if token['value_usd'] > 0 else ""
+                value_str = f" (\${token['value_usd']:.2f})" if token['value_usd'] > 0 else ""
                 print(f"   - {token['symbol']}: {format_number(token['balance'])}{value_str}")
     else:
         print("   Nessun token residuo trovato.")
@@ -372,9 +372,9 @@ def print_wallet_report(report: Dict, detailed: bool = False):
     else:
         print("   Nessun NFT trovato tra i token con saldo.")
     print(f"\n💵 VALORE TOTALE:")
-    print(f"   - Token: ${report['total_token_value_usd']:.2f}")
-    print(f"   - SOL: ${report['sol_value_usd']:.2f}")
-    print(f"   - TOTALE: ${report['grand_total_usd']:.2f}")
+    print(f"   - Token: \${report['total_token_value_usd']:.2f}")
+    print(f"   - SOL: \${report['sol_value_usd']:.2f}")
+    print(f"   - TOTALE: \${report['grand_total_usd']:.2f}")
     print(f"\n⏱️ Scansione completata in {report['execution_time']:.2f} secondi")
 
 def export_report(report: Dict, wallet_address: str, format_type: str):
@@ -415,18 +415,18 @@ def export_report(report: Dict, wallet_address: str, format_type: str):
         elif format_type.lower() == "txt":
             with open(f"{filename_base}.txt", "w", encoding="utf-8") as txtfile:
                 txtfile.write(f"SOLANA WALLET REPORT\n")
-                txtfile.write(f"=====================================\n")
+                txtfile.write(f"==========================================\n")
                 txtfile.write(f"Wallet: {report['wallet']}\n")
                 txtfile.write(f"Scan Time: {report['scan_time']}\n\n")
                 txtfile.write(f"SOL BALANCE\n")
                 txtfile.write(f"------------------------------------------\n")
-                txtfile.write(f"SOL: {report['sol_balance']:.6f} (${report['sol_value_usd']:.2f})\n\n")
+                txtfile.write(f"SOL: {report['sol_balance']:.6f} (\${report['sol_value_usd']:.2f})\n\n")
                 txtfile.write(f"ACCOUNT STATISTICS\n")
                 txtfile.write(f"------------------------------------------\n")
                 txtfile.write(f"Token Accounts: {report['token_accounts']}\n")
                 txtfile.write(f"Empty Accounts: {report['empty_accounts']}\n")
                 txtfile.write(f"NFT Accounts: {report['nft_accounts']}\n")
-                txtfile.write(f"Rent Reclaimable: {report['rent_reclaimable']:.6f} SOL (${report['rent_reclaimable_usd']:.2f})\n\n")
+                txtfile.write(f"Rent Reclaimable: {report['rent_reclaimable']:.6f} SOL (\${report['rent_reclaimable_usd']:.2f})\n\n")
                 txtfile.write(f"TOKEN BALANCES\n")
                 txtfile.write(f"------------------------------------------\n")
                 if report['tokens']:
@@ -447,9 +447,9 @@ def export_report(report: Dict, wallet_address: str, format_type: str):
                     txtfile.write("Nessun NFT trovato tra i token con saldo.\n")
                 txtfile.write(f"\nTOTAL VALUE\n")
                 txtfile.write(f"------------------------------------------\n")
-                txtfile.write(f"Token Value: ${report['total_token_value_usd']:.2f}\n")
-                txtfile.write(f"SOL Value: ${report['sol_value_usd']:.2f}\n")
-                txtfile.write(f"TOTAL VALUE: ${report['grand_total_usd']:.2f}\n")
+                txtfile.write(f"Token Value: \${report['total_token_value_usd']:.2f}\n")
+                txtfile.write(f"SOL Value: \${report['sol_value_usd']:.2f}\n")
+                txtfile.write(f"TOTAL VALUE: \${report['grand_total_usd']:.2f}\n")
             print(f"✅ Report esportato in: {filename_base}.txt")
     except Exception as e:
         print(f"❌ Errore durante l'esportazione: {str(e)}")
@@ -494,9 +494,6 @@ async def batch_process(input_file: str, export_format: str = None, detailed: bo
         print(f"❌ Errore durante l'elaborazione batch: {str(e)}")
         return None
 
-from solana.publickey import PublicKey
-from solana.rpc.types import TokenAccountOpts, AccountInfoOpts
-
 def generate_recovery_script(wallet_address: str, output_file: str = None):
     try:
         # Validazione indirizzo wallet
@@ -519,22 +516,18 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             return
 
         empty_accounts = []
+        from solana.rpc.types import AccountInfoOpts
         opts = AccountInfoOpts(encoding="jsonParsed")
 
         for acc in accounts:
-            pubkey_str = acc.pubkey
+            pubkey_str = str(acc.pubkey)
             acc_pub = PublicKey.from_string(pubkey_str)
             account_info_resp = solana_client.execute_with_retry("get_account_info", acc_pub, opts)
             account_info = account_info_resp.value
             if not account_info:
                 continue
-            if not hasattr(account_info.data, "parsed") or not isinstance(account_info.data.parsed, dict):
-                continue
-
-            parsed_data = account_info.data.parsed.get("info")
-            if not parsed_data:
-                continue
-
+            
+            parsed_data = acc.account.data.parsed["info"]
             amount = int(parsed_data["tokenAmount"]["amount"])
             if amount == 0:
                 empty_accounts.append(pubkey_str)
@@ -543,7 +536,7 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             print("❌ Nessun account vuoto trovato da cui recuperare rent.")
             return
 
-        # Costruisci script bash riga per riga (stringa semplice)
+        # Costruisci script bash riga per riga
         script = "#!/usr/bin/env bash\n\n"
         script += "# Script per recuperare SOL da account token vuoti\n"
         script += f"# Generato il {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -551,11 +544,11 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
 
         script += "# Requisiti: Solana CLI installata e configurata\n\n"
 
-        script += "WALLET_ADDRESS=$(solana address)\n"
-        script += f'if [ "$WALLET_ADDRESS" != "{wallet_address_str}" ]; then\n'
-        script += f'    echo "⚠️  ATTENZIONE: L\'indirizzo del wallet Solana CLI ($WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address_str})."\n'
+        script += "WALLET_ADDRESS=\$(solana address)\n"
+        script += f'if [ "\$WALLET_ADDRESS" != "{wallet_address_str}" ]; then\n'
+        script += f'    echo "⚠️  ATTENZIONE: L\'indirizzo del wallet Solana CLI (\$WALLET_ADDRESS) non corrisponde al wallet target ({wallet_address_str})."\n'
         script += '    read -p "Vuoi continuare? (s/n): " confirm\n'
-        script += '    if [ "$confirm" != "s" ]; then\n'
+        script += '    if [ "\$confirm" != "s" ]; then\n'
         script += '        echo "Operazione annullata."\n'
         script += '        exit 1\n'
         script += '    fi\n'
@@ -586,32 +579,4 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
         print(f"❌ Errore durante la generazione dello script: {str(e)}")
 
 async def main():
-    parser = argparse.ArgumentParser(description="Solana Wallet Scanner - Analisi completa di wallet Solana")
-    parser.add_argument("-w", "--wallet", help="Indirizzo del wallet Solana da analizzare")
-    parser.add_argument("-b", "--batch", help="File con lista di wallet da analizzare (uno per riga)")
-    parser.add_argument("-e", "--export", choices=["csv", "json", "txt"], help="Formato di esportazione del report")
-    parser.add_argument("-d", "--detailed", action="store_true", help="Mostra report dettagliato")
-    parser.add_argument("-r", "--recovery", action="store_true", help="Genera script di recupero rent")
-    parser.add_argument("-o", "--output", help="Nome file di output per lo script di recupero")
-    args = parser.parse_args()
-
-    if not args.wallet and not args.batch:
-        wallet = input("Inserisci l'address del wallet Solana: ").strip()
-        if args.recovery:
-            output_file = args.output or f"solana_recovery_{wallet[:6]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sh"
-            generate_recovery_script(wallet, output_file)
-        else:
-            await scan_wallet(wallet, args.export, args.detailed)
-    elif args.wallet:
-        if args.recovery:
-            output_file = args.output or f"solana_recovery_{args.wallet[:6]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sh"
-            generate_recovery_script(args.wallet, output_file)
-        else:
-            await scan_wallet(args.wallet, args.export, args.detailed)
-    elif args.batch:
-        await batch_process(args.batch, args.export, args.detailed)
-
-if __name__ == "__main__":
-    if sys.platform == 'win32':
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    asyncio.run(main())
+    
