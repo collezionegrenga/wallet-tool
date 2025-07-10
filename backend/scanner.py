@@ -5,16 +5,13 @@ import json
 import csv
 import asyncio
 import aiohttp
-import argparse
 import traceback
 from datetime import datetime
-from typing import Dict, List, Any, Optional
 
 from solana.rpc.api import Client
-from solana.rpc.types import TokenAccountOpts, AccountInfoOpts
 from solders.pubkey import Pubkey as PublicKey
 
-# === CONFIGURATION ===
+# === CONFIG ===
 SOLANA_RPC = "https://api.mainnet-beta.solana.com"
 BACKUP_RPC = ["https://rpc.ankr.com/solana", "https://solana-api.projectserum.com"]
 TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
@@ -93,7 +90,7 @@ async def fetch_api_data(session, url, headers=None):
                 return None
     return None
 
-async def get_token_metadata(session, mint_address: str) -> Dict:
+async def get_token_metadata(session, mint_address: str) -> dict:
     if mint_address in token_symbol_cache:
         return token_symbol_cache[mint_address]
     try:
@@ -157,7 +154,7 @@ async def is_nft(session, mint_address: str) -> bool:
         pass
     return False
 
-async def get_nft_metadata(session, mint_address: str) -> Dict:
+async def get_nft_metadata(session, mint_address: str) -> dict:
     if mint_address in nft_metadata_cache:
         return nft_metadata_cache[mint_address]
     data = await fetch_api_data(session, f"https://public-api.solscan.io/nft/meta?tokenAddress={mint_address}")
@@ -208,7 +205,6 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
     try:
         try:
             pubkey = PublicKey.from_string(wallet_address)
-            wallet_address_obj = pubkey
             wallet_address_str = str(pubkey)
         except Exception as e:
             print(f"❌ Indirizzo wallet non valido: {wallet_address}: {e}")
@@ -216,15 +212,15 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
         
         try:
             print(f"ℹ️ Richiesta get_balance per: {pubkey}")
-            sol_balance_resp = solana_client.execute_with_retry("get_balance", wallet_address_obj)
+            sol_balance_resp = solana_client.execute_with_retry("get_balance", pubkey)
             sol_balance = lamports_to_sol(sol_balance_resp.value)
             print(f"✅ Bilancio SOL trovato: {sol_balance}")
 
             print(f"ℹ️ Richiesta get_token_accounts_by_owner per: {wallet_address_str}")
             resp = solana_client.execute_with_retry(
                 "get_token_accounts_by_owner", 
-                wallet_address_obj, 
-                TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
+                pubkey, 
+                {"program_id": TOKEN_PROGRAM_ID}
             )
             accounts = resp.value
             print(f"✅ Trovati {len(accounts)} token account\n")
@@ -240,22 +236,21 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
                     pubkey_str = str(pubkey_obj)
                     print(f"ℹ️ Richiesta get_account_info per: {pubkey_str}")
 
-                    opts = AccountInfoOpts(encoding="jsonParsed")
                     account_info_resp = solana_client.execute_with_retry(
                         "get_account_info",
                         pubkey_obj,
-                        opts
+                        {"encoding": "jsonParsed"}
                     )
                     account_info = account_info_resp.value
-                    if not account_info or not hasattr(account_info.data, "parsed"):
+                    if not account_info or "parsed" not in account_info.get("data", {}):
                         continue
 
-                    lamports = account_info.lamports
-                    parsed_data = account_info.data.parsed["info"]
+                    lamports = account_info.get("lamports", 0)
+                    parsed_data = account_info["data"]["parsed"]["info"]
                     mint = parsed_data["mint"]
                     amount = int(parsed_data["tokenAmount"]["amount"])
                     decimals = int(parsed_data["tokenAmount"]["decimals"])
-                    ui_amount = amount / (10 ** decimals)
+                    ui_amount = amount / (10 ** decimals) if decimals > 0 else amount
 
                     if ui_amount == 0:
                         is_nft_token = await is_nft(session, mint)
@@ -338,7 +333,7 @@ async def scan_wallet(wallet_address: str, export_format: str = None, detailed: 
         print(traceback.format_exc())
         return None
 
-def print_wallet_report(report: Dict, detailed: bool = False):
+def print_wallet_report(report: dict, detailed: bool = False):
     print(f"\n{'='*60}")
     print(f"📊 REPORT WALLET: {report['wallet']}")
     print(f"{'='*60}")
@@ -376,7 +371,7 @@ def print_wallet_report(report: Dict, detailed: bool = False):
     print(f"   - TOTALE: \${report['grand_total_usd']:.2f}")
     print(f"\n⏱️ Scansione completata in {report['execution_time']:.2f} secondi")
 
-def export_report(report: Dict, wallet_address: str, format_type: str):
+def export_report(report: dict, wallet_address: str, format_type: str):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename_base = f"solana_wallet_{wallet_address[:6]}_{timestamp}"
     try:
@@ -505,7 +500,7 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
         resp = solana_client.execute_with_retry(
             "get_token_accounts_by_owner",
             pubkey,
-            TokenAccountOpts(program_id=PublicKey.from_string(TOKEN_PROGRAM_ID))
+            {"program_id": TOKEN_PROGRAM_ID}
         )
         accounts = resp.value
         if not accounts:
@@ -513,17 +508,16 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             return
 
         empty_accounts = []
-        opts = AccountInfoOpts(encoding="jsonParsed")
 
         for acc in accounts:
             pubkey_str = str(acc.pubkey)
             acc_pub = PublicKey.from_string(pubkey_str)
-            account_info_resp = solana_client.execute_with_retry("get_account_info", acc_pub, opts)
+            account_info_resp = solana_client.execute_with_retry("get_account_info", acc_pub, {"encoding": "jsonParsed"})
             account_info = account_info_resp.value
-            if not account_info:
+            if not account_info or "parsed" not in account_info.get("data", {}):
                 continue
             
-            parsed_data = acc.account.data.parsed["info"]
+            parsed_data = account_info["data"]["parsed"]["info"]
             amount = int(parsed_data["tokenAmount"]["amount"])
             if amount == 0:
                 empty_accounts.append(pubkey_str)
@@ -568,6 +562,3 @@ def generate_recovery_script(wallet_address: str, output_file: str = None):
             print(script)
     except Exception as e:
         print(f"❌ Errore durante la generazione dello script: {str(e)}")
-
-# Note: This file contains only function definitions. The main() function, if any, must be defined elsewhere,
-# for example in your main runner or app.py. This avoids the IndentationError when imported.
